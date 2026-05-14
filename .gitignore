@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-ssr
+coverage
+playwright-report
+test-results
+.vite
+*.local
+../.tmp_pptx_images
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# env
+.env
+.env.*
+!.env.example
+
+# msw
+public/mockServiceWorker.js
