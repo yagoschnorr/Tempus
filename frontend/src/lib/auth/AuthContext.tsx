@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export type AuthUser = {
   id: string;
@@ -17,21 +17,23 @@ const STORAGE_KEY = "tempus.auth";
 
 const AuthContext = createContext<AuthState | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
+function readStored(): { user: AuthUser | null; token: string | null } {
+  try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as { user: AuthUser; token: string };
-      setUser(parsed.user);
-      setToken(parsed.token);
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, []);
+    if (!raw) return { user: null, token: null };
+    const parsed = JSON.parse(raw) as { user: AuthUser; token: string };
+    return { user: parsed.user, token: parsed.token };
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return { user: null, token: null };
+  }
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Lazy init síncrono: garante que `RequireAuth` veja o token já no primeiro
+  // render, evitando que F5 numa rota autenticada caia no /login.
+  const [user, setUser] = useState<AuthUser | null>(() => readStored().user);
+  const [token, setToken] = useState<string | null>(() => readStored().token);
 
   const login = useCallback((nextUser: AuthUser, nextToken: string) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: nextUser, token: nextToken }));
