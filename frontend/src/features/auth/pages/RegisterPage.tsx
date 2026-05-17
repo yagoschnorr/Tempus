@@ -3,9 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, Timer, HelpCircle, LineChart } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { api } from "@/lib/api/client";
-import type { AuthResponse } from "@/lib/api/types";
+import { getErrorMessage } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { authApi } from "../api";
 
 function passwordStrength(pwd: string): { score: number; label: string; color: string } {
   let s = 0;
@@ -44,15 +44,11 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api<AuthResponse>("/auth/register", {
-        method: "POST",
-        json: { name, email, password },
-      });
+      const res = await authApi.register(name, email, password);
       login(res.user, res.access_token);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError("Não foi possível criar conta");
-      console.error(err);
+      setError(getErrorMessage(err, "Não foi possível criar conta"));
     } finally {
       setLoading(false);
     }

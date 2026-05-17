@@ -3,9 +3,9 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Github, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { api } from "@/lib/api/client";
-import type { AuthResponse } from "@/lib/api/types";
+import { getErrorMessage } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { authApi } from "../api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -23,15 +23,11 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api<AuthResponse>("/auth/login", {
-        method: "POST",
-        json: { email, password },
-      });
+      const res = await authApi.login(email, password);
       login(res.user, res.access_token);
       navigate(from, { replace: true });
     } catch (err) {
-      setError("Credenciais inválidas");
-      console.error(err);
+      setError(getErrorMessage(err, "Credenciais inválidas"));
     } finally {
       setLoading(false);
     }

@@ -22,6 +22,11 @@ export class ApiError extends Error {
   }
 }
 
+export function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && typeof err.detail === "string") return err.detail;
+  return fallback;
+}
+
 export async function api<T>(
   path: string,
   init: RequestInit & { json?: unknown } = {},
