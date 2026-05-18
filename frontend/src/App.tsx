@@ -8,7 +8,6 @@ import {
   Layers,
   LogOut,
   MessageCircle,
-  Search,
   Tag,
   Timer as TimerIcon,
   HelpCircle,
@@ -139,20 +138,6 @@ export default function App() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-ink-700 bg-ink-950/80 backdrop-blur flex items-center px-8 gap-4">
-          <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink-900 border border-ink-700 text-ink-400 text-sm hover:text-ink-200 transition">
-            <Search size={14} />
-            <span>Buscar</span>
-            <span className="kbd ml-2">⌘K</span>
-          </button>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2 text-xs text-ink-400">
-            <Flame size={12} className="text-accent-orange" />
-            <span className="font-medium text-ink-200">14</span>
-            <span>dias</span>
-          </div>
-        </header>
-
         <main className="flex-1 px-8 py-8 overflow-y-auto">
           <Outlet />
         </main>
