@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+alembic
+pydantic[email]
+pydantic-settings
+psycopg2-binary
+pgvector
+pdfplumber
+tiktoken
+openai
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+httpx
+pytest
+pytest-cov
