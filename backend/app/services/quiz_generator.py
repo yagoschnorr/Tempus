@@ -15,6 +15,7 @@ Decisões:
 from __future__ import annotations
 
 import json
+import random
 from typing import Any, Optional
 
 from pydantic import ValidationError
@@ -24,6 +25,42 @@ from app.schemas.quiz import GeneratedQuestion, GeneratedQuiz
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_TEMPERATURE = 0.7
+_LETTERS = ("a", "b", "c", "d")
+
+
+def _shuffle_options(question: GeneratedQuestion) -> GeneratedQuestion:
+    """Embaralha as 4 alternativas e ajusta `correct_answer`.
+
+    LLMs têm bias forte para colocar a resposta correta em 'a'. O shuffle
+    posicional resolve isso independentemente do prompt — o conteúdo de cada
+    alternativa fica intacto e `correct_answer` passa a apontar para a nova
+    posição da alternativa originalmente correta.
+    """
+    texts = [
+        question.option_a,
+        question.option_b,
+        question.option_c,
+        question.option_d,
+    ]
+    correct_idx = _LETTERS.index(question.correct_answer)
+
+    indexed = list(enumerate(texts))
+    random.shuffle(indexed)
+
+    new_correct_pos = next(
+        pos for pos, (orig, _) in enumerate(indexed) if orig == correct_idx
+    )
+    shuffled = [text for _, text in indexed]
+
+    return GeneratedQuestion(
+        question_text=question.question_text,
+        option_a=shuffled[0],
+        option_b=shuffled[1],
+        option_c=shuffled[2],
+        option_d=shuffled[3],
+        correct_answer=_LETTERS[new_correct_pos],
+        explanation=question.explanation,
+    )
 
 SYSTEM_PROMPT = """Você é um especialista em criar questionários educacionais em português do Brasil.
 Gere perguntas de múltipla escolha com exatamente 4 alternativas (a, b, c, d).
@@ -143,7 +180,7 @@ def generate_questions_from_topic(
                     f"OpenAI retornou {len(parsed.questions)} perguntas; "
                     f"esperado {total_questions}"
                 )
-            return parsed.questions
+            return [_shuffle_options(q) for q in parsed.questions]
         except (json.JSONDecodeError, ValidationError, QuizGenerationError) as err:
             last_error = err
             if attempt >= max_retries:
