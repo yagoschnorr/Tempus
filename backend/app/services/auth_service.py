@@ -1,0 +1,43 @@
+from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
+
+from app.models.user import User
+from app.schemas.user import UserCreate
+from app.core.security import get_password_hash, verify_password
+
+def get_user_by_email(db: Session, email: str) -> User | None:
+    """Busca um usuário no banco pelo e-mail."""
+    return db.query(User).filter(User.email == email).first()
+
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
+    """Valida as credenciais, retornando o usuário se a senha for válida."""
+    user = get_user_by_email(db, email)
+    if not user:
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    return user
+
+def register_new_user(db: Session, user_in: UserCreate) -> User:
+    """Verifica se o e-mail não existe, faz o hash da senha e insere o novo usuário."""
+    # Verificar se já existe um usuário com esse e-mail
+    existing_user = get_user_by_email(db, email=user_in.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="O e-mail já está cadastrado em outra conta.",
+        )
+    
+    # Criar novo objeto modelo
+    new_user = User(
+        name=user_in.name,
+        email=user_in.email,
+        password_hash=get_password_hash(user_in.password),
+    )
+    
+    # Salvar no banco
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return new_user
