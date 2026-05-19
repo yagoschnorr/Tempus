@@ -10,6 +10,7 @@ test-results
 ../.tmp_pptx_images
 __pycache__/
 .pytest_cache/
+.DS_Store
 
 # editor
 .vscode/*
