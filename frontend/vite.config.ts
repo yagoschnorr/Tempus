@@ -12,10 +12,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Backend monta os routers com prefix `/api/*`, então NÃO podemos remover `/api`
+      // da URL antes de encaminhar — a request precisa chegar como `/api/quizzes/...`.
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ""),
       },
     },
   },
