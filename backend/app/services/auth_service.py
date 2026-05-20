@@ -72,3 +72,18 @@ def change_password(
         )
     user.password_hash = get_password_hash(new_password)
     db.commit()
+
+def delete_user_account(db: Session, user: User, password: str) -> None:
+    """Exclui a conta após confirmar a senha. ON DELETE CASCADE no banco cuida
+    dos dados relacionados (subjects, sessions, quizzes, documents, etc.).
+    """
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Senha incorreta",
+        )
+    # TODO: quando o módulo de documents tiver upload real, apagar arquivos
+    # do storage antes deste delete (linhas em `documents` cascateiam, mas
+    # os arquivos físicos em disco/S3 ficariam órfãos).
+    db.delete(user)
+    db.commit()

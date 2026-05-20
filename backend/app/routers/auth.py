@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.deps import get_current_user
 from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
-from app.schemas.auth import AuthResponse, PasswordChange
+from app.schemas.auth import AccountDelete, AuthResponse, PasswordChange
 from app.services import auth_service
 from app.models.user import User
 
@@ -55,3 +55,12 @@ def change_current_user_password(
     auth_service.change_password(
         db, current_user, payload.current_password, payload.new_password
     )
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_current_user(
+    payload: AccountDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Exclui permanentemente a conta logada. Cascade do banco apaga dados relacionados."""
+    auth_service.delete_user_account(db, current_user, payload.password)
