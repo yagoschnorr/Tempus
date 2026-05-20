@@ -1,12 +1,41 @@
-import { FormEvent, useState } from "react";
-import { Check, ChevronRight, FileText, RotateCcw, Sparkles, X } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import {
+  Check,
+  ChevronRight,
+  FileText,
+  History,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
+import { Toast } from "@/components/Toast";
 import { useSubjects } from "@/features/subjects/hooks/useSubjects";
-import type { QuizOption, QuizSourceType } from "@/lib/api/types";
+import type { Quiz, QuizOption, QuizSourceType, QuizStatus } from "@/lib/api/types";
 import { useQuiz } from "./hooks/useQuiz";
+import { DeleteQuizDialog } from "./components/DeleteQuizDialog";
 
 const OPTIONS: QuizOption[] = ["a", "b", "c", "d"];
+
+const STATUS_LABEL: Record<QuizStatus, string> = {
+  pending: "Pendente",
+  in_progress: "Em andamento",
+  completed: "Concluído",
+};
+
+const STATUS_STYLE: Record<QuizStatus, string> = {
+  pending: "bg-ink-800 text-ink-300 border border-ink-700",
+  in_progress: "bg-info-500/15 text-info-500 border border-info-500/30",
+  completed: "bg-success-500/15 text-success-400 border border-success-500/30",
+};
+
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
 
 export default function QuizPage() {
   const { subjects } = useSubjects();
@@ -17,6 +46,35 @@ export default function QuizPage() {
   const [subjectId, setSubjectId] = useState<string>("");
   const [topic, setTopic] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(5);
+
+  // History interactions
+  const [toDelete, setToDelete] = useState<Quiz | null>(null);
+  const [restartingId, setRestartingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  async function handleRestart(id: string) {
+    setRestartingId(id);
+    try {
+      await quiz.restartQuiz(id);
+    } catch {
+      setToast({ kind: "error", message: "Não foi possível reiniciar o quiz" });
+    } finally {
+      setRestartingId(null);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    await quiz.deleteQuiz(id);
+    setToast({ kind: "success", message: "Quiz excluído" });
+  }
 
   async function handleGenerate(e: FormEvent) {
     e.preventDefault();
@@ -166,6 +224,108 @@ export default function QuizPage() {
             </Button>
           </div>
         </form>
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-ink-100 flex items-center gap-2">
+                <History size={16} className="text-brand-400" /> Quizzes anteriores
+              </h2>
+              <p className="text-sm text-ink-400">
+                Refaça um quiz para treinar de novo ou apague o que não precisa mais.
+              </p>
+            </div>
+          </div>
+
+          {quiz.historyLoading && quiz.history.length === 0 && (
+            <div className="flex items-center gap-3 text-ink-400">
+              <Spinner /> Carregando histórico...
+            </div>
+          )}
+
+          {!quiz.historyLoading && quiz.history.length === 0 && (
+            <div className="card p-8 text-center text-ink-400 text-sm">
+              Você ainda não gerou nenhum quiz. Use o formulário acima para criar o
+              primeiro.
+            </div>
+          )}
+
+          {quiz.history.length > 0 && (
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {quiz.history.map((q) => {
+                const isRestarting = restartingId === q.id;
+                const subject = subjects.find((s) => s.id === q.subject_id);
+                return (
+                  <li
+                    key={q.id}
+                    className="card p-4 flex flex-col gap-3 hover:border-brand-500/40 transition"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-medium text-ink-100 truncate">{q.title}</h3>
+                        <p className="text-xs text-ink-400 mt-0.5">
+                          {dateFormatter.format(new Date(q.created_at))} ·{" "}
+                          {q.total_questions} perguntas
+                          {subject && <> · {subject.name}</>}
+                        </p>
+                      </div>
+                      <span className={`pill shrink-0 ${STATUS_STYLE[q.status]}`}>
+                        {STATUS_LABEL[q.status]}
+                      </span>
+                    </div>
+
+                    {q.status === "completed" && q.score !== null && (
+                      <p className="text-sm text-ink-300">
+                        Nota:{" "}
+                        <span className="text-ink-100 font-semibold tabular-nums">
+                          {q.score}%
+                        </span>
+                      </p>
+                    )}
+
+                    <div className="flex justify-end gap-1 pt-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRestart(q.id)}
+                        disabled={isRestarting || restartingId !== null}
+                        aria-label={`Refazer ${q.title}`}
+                      >
+                        {isRestarting ? (
+                          <>
+                            <Spinner size={12} /> Reiniciando...
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw size={14} /> Refazer
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setToDelete(q)}
+                        disabled={restartingId !== null}
+                        aria-label={`Excluir ${q.title}`}
+                        className="text-danger-500 hover:text-danger-500"
+                      >
+                        <Trash2 size={14} /> Excluir
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <DeleteQuizDialog
+          quiz={toDelete}
+          onClose={() => setToDelete(null)}
+          onConfirm={() => (toDelete ? handleDelete(toDelete.id) : Promise.resolve())}
+        />
+
+        {toast && <Toast kind={toast.kind} message={toast.message} />}
       </div>
     );
   }

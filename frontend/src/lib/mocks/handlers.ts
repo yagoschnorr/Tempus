@@ -331,6 +331,24 @@ const quizzesHandlers = [
     quiz.completed_at = now();
     return HttpResponse.json(quiz);
   }),
+
+  http.post("/api/quizzes/:id/restart", ({ params }) => {
+    const quiz = quizzes.find((q) => q.id === params.id);
+    if (!quiz) return error(404, "quiz não encontrado");
+    quiz.status = "in_progress";
+    quiz.score = null;
+    quiz.completed_at = null;
+    quizAnswers.set(quiz.id, []);
+    return HttpResponse.json(quiz);
+  }),
+
+  http.delete("/api/quizzes/:id", ({ params }) => {
+    const idx = quizzes.findIndex((q) => q.id === params.id);
+    if (idx === -1) return error(404, "quiz não encontrado");
+    quizzes.splice(idx, 1);
+    quizAnswers.delete(params.id as UUID);
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];
 
 // =============================================================================

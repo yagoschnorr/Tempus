@@ -34,4 +34,12 @@ export const quizzesApi = {
   complete(id: UUID) {
     return api<Quiz>(`/quizzes/${id}/complete`, { method: "POST" });
   },
+
+  restart(id: UUID) {
+    return api<Quiz>(`/quizzes/${id}/restart`, { method: "POST" });
+  },
+
+  remove(id: UUID) {
+    return api<void>(`/quizzes/${id}`, { method: "DELETE" });
+  },
 };
