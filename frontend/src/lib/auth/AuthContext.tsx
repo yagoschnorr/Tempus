@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  timezone?: string;
 };
 
 type AuthState = {
@@ -11,6 +12,7 @@ type AuthState = {
   token: string | null;
   login: (user: AuthUser, token: string) => void;
   logout: () => void;
+  updateUser: (patch: Partial<AuthUser>) => void;
 };
 
 const STORAGE_KEY = "tempus.auth";
@@ -47,7 +49,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
   }, []);
 
-  const value = useMemo(() => ({ user, token, login, logout }), [user, token, login, logout]);
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      const stored = readStored();
+      if (stored.token) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: next, token: stored.token }));
+      }
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, token, login, logout, updateUser }),
+    [user, token, login, logout, updateUser]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

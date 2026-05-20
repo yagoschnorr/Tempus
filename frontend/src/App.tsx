@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   BookOpen,
@@ -13,6 +14,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useAuth } from "./lib/auth/AuthContext";
+import { ProfileModal } from "./features/auth/components/ProfileModal";
 
 const navMain = [
   { to: "/dashboard", label: "Início", icon: Home },
@@ -41,6 +43,7 @@ function initialsOf(name: string) {
 
 export default function App() {
   const { user, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   const displayName = user?.name ?? "Visitante";
   const displayEmail = user?.email ?? "";
   const initials = initialsOf(displayName);
@@ -117,18 +120,25 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-9 h-9 rounded-full bg-brand-500/20 text-brand-300 flex items-center justify-center text-xs font-semibold border border-brand-500/30">
-              {initials || "?"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-ink-100 truncate">{displayName}</p>
-              {displayEmail && (
-                <p className="text-xs text-ink-500 truncate">{displayEmail}</p>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-lg hover:bg-ink-800 px-1 -mx-1 py-1 transition"
+              title="Editar perfil"
+            >
+              <div className="w-9 h-9 rounded-full bg-brand-500/20 text-brand-300 flex items-center justify-center text-xs font-semibold border border-brand-500/30 shrink-0">
+                {initials || "?"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-ink-100 truncate">{displayName}</p>
+                {displayEmail && (
+                  <p className="text-xs text-ink-500 truncate">{displayEmail}</p>
+                )}
+              </div>
+            </button>
             <button
               onClick={logout}
-              className="text-ink-500 hover:text-ink-200 transition"
+              className="text-ink-500 hover:text-ink-200 transition shrink-0"
               title="Sair"
             >
               <LogOut size={16} />
@@ -142,6 +152,8 @@ export default function App() {
           <Outlet />
         </main>
       </div>
+
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

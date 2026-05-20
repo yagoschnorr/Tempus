@@ -3,14 +3,17 @@ import type {
   AnswerInput,
   AnswerResult,
   AuthResponse,
+  ChangePasswordInput,
   CreateQuizInput,
   CreateSessionInput,
   CreateSubjectInput,
+  DeleteAccountInput,
   Quiz,
   QuizOption,
   QuizQuestion,
   StudySession,
   Subject,
+  UpdateProfileInput,
   UpdateSubjectInput,
   UUID,
   User,
@@ -20,12 +23,16 @@ import type {
 // Estado em memória (mutável entre requests; resetMockState() limpa para testes)
 // =============================================================================
 
-const fakeUser: User = {
+let fakeUser: User = {
   id: "u-1",
   name: "Yago",
   email: "yago@tempus.dev",
+  timezone: "America/Belem",
   created_at: new Date().toISOString(),
 };
+
+// senha do mock — só usada pra simular re-autenticação no PATCH /password e DELETE /me
+let fakeUserPassword = "senha-de-teste";
 
 const seedSubjects = (): Subject[] => [
   {
@@ -93,6 +100,42 @@ const authHandlers = [
   }),
 
   http.get("/api/auth/me", () => HttpResponse.json(fakeUser)),
+
+  http.patch("/api/auth/me", async ({ request }) => {
+    const body = (await request.json()) as UpdateProfileInput;
+    if (body.name !== undefined) {
+      const trimmed = body.name.trim();
+      if (!trimmed) return error(400, "nome não pode ser vazio");
+      fakeUser = { ...fakeUser, name: trimmed };
+    }
+    if (body.timezone !== undefined) {
+      if (!body.timezone.trim()) return error(400, "timezone inválida");
+      fakeUser = { ...fakeUser, timezone: body.timezone };
+    }
+    return HttpResponse.json(fakeUser);
+  }),
+
+  http.patch("/api/auth/me/password", async ({ request }) => {
+    const body = (await request.json()) as ChangePasswordInput;
+    if (body.current_password !== fakeUserPassword) {
+      return error(400, "senha atual incorreta");
+    }
+    if (!body.new_password || body.new_password.length < 8) {
+      return error(400, "nova senha deve ter ao menos 8 caracteres");
+    }
+    fakeUserPassword = body.new_password;
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.delete("/api/auth/me", async ({ request }) => {
+    const body = (await request.json()) as DeleteAccountInput;
+    if (body.password !== fakeUserPassword) {
+      return error(400, "senha incorreta");
+    }
+    // No mock só limpamos o estado em memória — frontend trata o logout depois do 204
+    resetMockState();
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];
 
 // =============================================================================

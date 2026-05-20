@@ -22,7 +22,22 @@ export interface User {
   id: UUID;
   name: string;
   email: string;
+  timezone: string;
   created_at: string;
+}
+
+export interface UpdateProfileInput {
+  name?: string;
+  timezone?: string;
+}
+
+export interface ChangePasswordInput {
+  current_password: string;
+  new_password: string;
+}
+
+export interface DeleteAccountInput {
+  password: string;
 }
 
 export interface AuthResponse {
