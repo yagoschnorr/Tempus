@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.deps import get_current_user
 from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
-from app.schemas.auth import AuthResponse
+from app.schemas.auth import AuthResponse, PasswordChange
 from app.services import auth_service
 from app.models.user import User
 
@@ -44,3 +44,14 @@ def update_current_user(
 ):
     """Atualiza nome e/ou timezone do usuário logado (PATCH parcial)."""
     return auth_service.update_user_profile(db, current_user, payload)
+
+@router.patch("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_current_user_password(
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Troca a senha do usuário logado. Requer a senha atual pra confirmar."""
+    auth_service.change_password(
+        db, current_user, payload.current_password, payload.new_password
+    )
