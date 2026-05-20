@@ -340,3 +340,196 @@ def test_complete_twice_returns_400(client, auth_headers, fake_openai):
 
     second = client.post(f"/api/quizzes/{quiz_id}/complete", headers=auth_headers)
     assert second.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Restart — zera respostas e volta a in_progress
+# ---------------------------------------------------------------------------
+def _play_through(client, auth_headers, gen: dict, intent: list[bool]) -> None:
+    """Inicia, responde todas as N perguntas com o gabarito de `intent` e conclui."""
+    quiz_id = gen["id"]
+    client.post(f"/api/quizzes/{quiz_id}/start", headers=auth_headers)
+    for idx, should_hit in enumerate(intent):
+        question = gen["questions"][idx]
+        correct_letter = question["correct_answer"]
+        wrong_letter = next(opt for opt in ("a", "b", "c", "d") if opt != correct_letter)
+        picked = correct_letter if should_hit else wrong_letter
+        client.post(
+            f"/api/quizzes/{quiz_id}/questions/{question['id']}/answer",
+            json={"user_answer": picked},
+            headers=auth_headers,
+        )
+    client.post(f"/api/quizzes/{quiz_id}/complete", headers=auth_headers)
+
+
+def test_restart_completed_quiz_resets_state_and_answers(
+    client, auth_headers, fake_openai
+):
+    fake_openai.chat_responses.append(_scripted_chat_response(2))
+    gen = client.post(
+        "/api/quizzes/generate",
+        json={
+            "source_type": "general_topic",
+            "topic_description": "Limites",
+            "total_questions": 2,
+        },
+        headers=auth_headers,
+    ).json()
+    quiz_id = gen["id"]
+    _play_through(client, auth_headers, gen, intent=[True, False])
+    completed = client.get(f"/api/quizzes/{quiz_id}", headers=auth_headers).json()
+    assert completed["status"] == "completed"
+    assert completed["score"] == 50
+
+    # Restart
+    response = client.post(f"/api/quizzes/{quiz_id}/restart", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    restarted = response.json()
+    assert restarted["status"] == "in_progress"
+    assert restarted["score"] is None
+    assert restarted["completed_at"] is None
+    # Mantém as mesmas perguntas embedded para o frontend não precisar de outro fetch
+    assert len(restarted["questions"]) == 2
+    assert {q["id"] for q in restarted["questions"]} == {
+        q["id"] for q in gen["questions"]
+    }
+
+    # As respostas anteriores foram apagadas, então a primeira pergunta pode ser
+    # respondida de novo sem disparar o 400 de "já foi respondida".
+    first_qid = gen["questions"][0]["id"]
+    answer = client.post(
+        f"/api/quizzes/{quiz_id}/questions/{first_qid}/answer",
+        json={"user_answer": "a"},
+        headers=auth_headers,
+    )
+    assert answer.status_code == 200
+
+
+def test_restart_in_progress_quiz_clears_partial_answers(
+    client, auth_headers, fake_openai
+):
+    fake_openai.chat_responses.append(_scripted_chat_response(2))
+    gen = client.post(
+        "/api/quizzes/generate",
+        json={
+            "source_type": "general_topic",
+            "topic_description": "Limites",
+            "total_questions": 2,
+        },
+        headers=auth_headers,
+    ).json()
+    quiz_id = gen["id"]
+    client.post(f"/api/quizzes/{quiz_id}/start", headers=auth_headers)
+
+    first_qid = gen["questions"][0]["id"]
+    client.post(
+        f"/api/quizzes/{quiz_id}/questions/{first_qid}/answer",
+        json={"user_answer": "a"},
+        headers=auth_headers,
+    )
+
+    response = client.post(f"/api/quizzes/{quiz_id}/restart", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "in_progress"
+
+    # Responde a mesma pergunta de novo — deve ser permitido após o restart.
+    again = client.post(
+        f"/api/quizzes/{quiz_id}/questions/{first_qid}/answer",
+        json={"user_answer": "b"},
+        headers=auth_headers,
+    )
+    assert again.status_code == 200
+
+
+def test_restart_quiz_not_found(client, auth_headers):
+    response = client.post(f"/api/quizzes/{uuid4()}/restart", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_restart_requires_auth(client):
+    response = client.post(f"/api/quizzes/{uuid4()}/restart")
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Delete — quiz some da lista e leva perguntas/respostas por CASCADE
+# ---------------------------------------------------------------------------
+def test_delete_completed_quiz_removes_from_list(client, auth_headers, fake_openai):
+    fake_openai.chat_responses.append(_scripted_chat_response(1))
+    gen = client.post(
+        "/api/quizzes/generate",
+        json={
+            "source_type": "general_topic",
+            "topic_description": "Limites",
+            "total_questions": 1,
+        },
+        headers=auth_headers,
+    ).json()
+    quiz_id = gen["id"]
+    _play_through(client, auth_headers, gen, intent=[True])
+
+    response = client.delete(f"/api/quizzes/{quiz_id}", headers=auth_headers)
+    assert response.status_code == 204
+    assert response.content == b""
+
+    listing = client.get("/api/quizzes", headers=auth_headers).json()
+    assert all(q["id"] != quiz_id for q in listing)
+    assert client.get(f"/api/quizzes/{quiz_id}", headers=auth_headers).status_code == 404
+
+
+def test_delete_in_progress_quiz_allowed(client, auth_headers, fake_openai):
+    fake_openai.chat_responses.append(_scripted_chat_response(1))
+    gen = client.post(
+        "/api/quizzes/generate",
+        json={
+            "source_type": "general_topic",
+            "topic_description": "Limites",
+            "total_questions": 1,
+        },
+        headers=auth_headers,
+    ).json()
+    quiz_id = gen["id"]
+    client.post(f"/api/quizzes/{quiz_id}/start", headers=auth_headers)
+
+    response = client.delete(f"/api/quizzes/{quiz_id}", headers=auth_headers)
+    assert response.status_code == 204
+
+
+def test_delete_cascades_questions_and_answers(
+    client, auth_headers, fake_openai, db
+):
+    from app.models.quiz import QuizAnswer, QuizQuestion
+
+    fake_openai.chat_responses.append(_scripted_chat_response(1))
+    gen = client.post(
+        "/api/quizzes/generate",
+        json={
+            "source_type": "general_topic",
+            "topic_description": "Limites",
+            "total_questions": 1,
+        },
+        headers=auth_headers,
+    ).json()
+    quiz_id = gen["id"]
+    _play_through(client, auth_headers, gen, intent=[True])
+
+    # Antes do delete: 1 pergunta + 1 resposta persistidas
+    assert db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz_id).count() == 1
+    q_ids = [q.id for q in db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz_id)]
+    assert db.query(QuizAnswer).filter(QuizAnswer.quiz_question_id.in_(q_ids)).count() == 1
+
+    assert client.delete(f"/api/quizzes/{quiz_id}", headers=auth_headers).status_code == 204
+
+    # Cascade levou perguntas e respostas embora
+    assert db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz_id).count() == 0
+    assert db.query(QuizAnswer).filter(QuizAnswer.quiz_question_id.in_(q_ids)).count() == 0
+
+
+def test_delete_quiz_not_found(client, auth_headers):
+    response = client.delete(f"/api/quizzes/{uuid4()}", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_delete_requires_auth(client):
+    response = client.delete(f"/api/quizzes/{uuid4()}")
+    assert response.status_code == 401

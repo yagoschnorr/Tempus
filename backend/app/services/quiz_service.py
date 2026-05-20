@@ -252,3 +252,36 @@ def complete_quiz(db: Session, user: User, quiz_id: UUID) -> Quiz:
     db.commit()
     db.refresh(quiz)
     return quiz
+
+
+def restart_quiz(db: Session, user: User, quiz_id: UUID) -> Quiz:
+    """Reseta o quiz para in_progress, descartando score, completed_at e
+    todas as respostas anteriores. Idempotente.
+
+    Aceito a partir de qualquer status: o caso típico é refazer um quiz
+    `completed`, mas reiniciar um `in_progress` (limpando respostas parciais)
+    ou um `pending` também é válido.
+    """
+    quiz = _get_quiz_owned_by_user(db, user.id, quiz_id)
+
+    question_ids = [q.id for q in list_quiz_questions(db, quiz.id)]
+    if question_ids:
+        (
+            db.query(QuizAnswer)
+            .filter(QuizAnswer.quiz_question_id.in_(question_ids))
+            .delete(synchronize_session=False)
+        )
+
+    quiz.status = QuizStatus.in_progress
+    quiz.score = None
+    quiz.completed_at = None
+    db.commit()
+    db.refresh(quiz)
+    return quiz
+
+
+def delete_quiz(db: Session, user: User, quiz_id: UUID) -> None:
+    """Remove o quiz. `quiz_questions` e `quiz_answers` somem por CASCADE."""
+    quiz = _get_quiz_owned_by_user(db, user.id, quiz_id)
+    db.delete(quiz)
+    db.commit()

@@ -7,13 +7,15 @@ Contrato espelha `frontend-atual/src/lib/mocks/handlers.ts` (quizzesHandlers):
 * `POST /{quiz_id}/start`     → muda status para in_progress
 * `POST /{quiz_id}/questions/{question_id}/answer` → grava resposta + retorna feedback
 * `POST /{quiz_id}/complete`  → calcula score, muda status para completed
+* `POST /{quiz_id}/restart`   → zera respostas/score e retorna ao in_progress
+* `DELETE /{quiz_id}`         → remove o quiz (perguntas e respostas vão por CASCADE)
 """
 from __future__ import annotations
 
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -100,3 +102,23 @@ def complete_quiz(
     current_user: User = Depends(get_current_user),
 ):
     return quiz_service.complete_quiz(db, current_user, quiz_id)
+
+
+@router.post("/{quiz_id}/restart", response_model=QuizOut)
+def restart_quiz(
+    quiz_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    quiz = quiz_service.restart_quiz(db, current_user, quiz_id)
+    return _quiz_with_questions(db, quiz)
+
+
+@router.delete("/{quiz_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_quiz(
+    quiz_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    quiz_service.delete_quiz(db, current_user, quiz_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
