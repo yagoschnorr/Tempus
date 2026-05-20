@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.deps import get_current_user
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.schemas.auth import AuthResponse
 from app.services import auth_service
 from app.models.user import User
@@ -35,3 +35,12 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Retorna os dados do usuário atualmente logado (requer token válido)."""
     return current_user
+
+@router.patch("/me", response_model=UserResponse)
+def update_current_user(
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Atualiza nome e/ou timezone do usuário logado (PATCH parcial)."""
+    return auth_service.update_user_profile(db, current_user, payload)

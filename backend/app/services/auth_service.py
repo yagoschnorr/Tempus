@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.models.user import User
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -39,5 +39,18 @@ def register_new_user(db: Session, user_in: UserCreate) -> User:
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
     return new_user
+
+def update_user_profile(db: Session, user: User, payload: UserUpdate) -> User:
+    """Atualiza nome e/ou timezone do usuário. Aplica somente os campos enviados."""
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        return user
+
+    for field, value in data.items():
+        setattr(user, field, value)
+
+    db.commit()
+    db.refresh(user)
+    return user
