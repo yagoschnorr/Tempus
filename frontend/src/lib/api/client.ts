@@ -47,6 +47,12 @@ export async function api<T>(
   }
 
   const res = await fetch(`${BASE_URL}${path}`, { ...rest, body, headers: finalHeaders });
+
+  // 204 No Content: corpo vazio por definição — não tente parsear.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   const contentType = res.headers.get("content-type") ?? "";
   const payload = contentType.includes("application/json") ? await res.json() : await res.text();
 
