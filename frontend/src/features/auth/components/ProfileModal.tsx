@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AlertTriangle, Lock, Trash2, User as UserIcon } from "lucide-react";
+import { AlertTriangle, Lock, Mail, Trash2, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
@@ -162,17 +162,10 @@ function ProfileTab({ onSuccess }: { onSuccess: (message: string) => void }) {
         required
       />
 
-      <div>
-        <span className="block mb-1.5 text-ink-300 font-medium text-xs uppercase tracking-wider">
-          Email
-        </span>
-        <div className="w-full rounded-lg bg-ink-900/50 border border-ink-700 px-3 py-2.5 text-ink-400 text-sm">
-          {user?.email ?? "—"}
-        </div>
-        <span className="block mt-1 text-xs text-ink-500">
-          Alterar email exige verificação — disponível em breve.
-        </span>
-      </div>
+      <EmailChangeSection
+        currentEmail={user?.email ?? ""}
+        onSuccess={(m) => onSuccess(m)}
+      />
 
       <label className="block text-sm">
         <span className="block mb-1.5 text-ink-300 font-medium text-xs uppercase tracking-wider">
@@ -203,6 +196,133 @@ function ProfileTab({ onSuccess }: { onSuccess: (message: string) => void }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trocar email — pede confirmação no novo endereço antes de aplicar
+// ---------------------------------------------------------------------------
+function EmailChangeSection({
+  currentEmail,
+  onSuccess,
+}: {
+  currentEmail: string;
+  onSuccess: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function close() {
+    setOpen(false);
+    setNewEmail("");
+    setPassword("");
+    setError(null);
+  }
+
+  // Sem <form>: este bloco vive dentro do form do ProfileTab. Form aninhado
+  // é inválido em HTML — o browser ignora o inner e qualquer "submit" cai no
+  // form externo, salvando o perfil em vez de pedir a troca de email.
+  async function handleSend() {
+    const target = newEmail.trim().toLowerCase();
+    if (!target) {
+      setError("Informe o novo email");
+      return;
+    }
+    if (target === currentEmail.toLowerCase()) {
+      setError("O novo email precisa ser diferente do atual");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await authApi.requestEmailChange({
+        new_email: target,
+        current_password: password,
+      });
+      onSuccess(`Enviamos um link de confirmação para ${target}. Expira em 1 hora.`);
+      close();
+    } catch (err) {
+      setError(getErrorMessage(err, "Não foi possível enviar o email de verificação"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleEnterKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault(); // impede o submit do form externo
+      void handleSend();
+    }
+  }
+
+  return (
+    <div>
+      <span className="block mb-1.5 text-ink-300 font-medium text-xs uppercase tracking-wider">
+        Email
+      </span>
+      <div className="w-full rounded-lg bg-ink-900/50 border border-ink-700 px-3 py-2.5 text-ink-400 text-sm">
+        {currentEmail || "—"}
+      </div>
+
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium"
+        >
+          <Mail size={12} /> Trocar email
+        </button>
+      ) : (
+        <div className="mt-3 space-y-3 rounded-lg border border-ink-700 bg-ink-900/40 p-3">
+          <Input
+            label="Novo email"
+            name="new-email"
+            type="email"
+            autoComplete="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            onKeyDown={handleEnterKey}
+            required
+          />
+          <Input
+            label="Senha atual"
+            name="email-change-password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={handleEnterKey}
+            required
+          />
+          <p className="text-xs text-ink-500">
+            Mandaremos um link para o novo endereço. Depois de confirmar, você precisará
+            entrar de novo com o email atualizado.
+          </p>
+
+          {error && (
+            <p className="text-sm text-danger-500 bg-danger-500/10 border border-danger-500/30 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={close} disabled={submitting}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSend}
+              disabled={submitting || !newEmail || !password}
+            >
+              {submitting ? "Enviando..." : "Enviar verificação"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

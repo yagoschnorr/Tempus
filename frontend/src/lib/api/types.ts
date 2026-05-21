@@ -40,6 +40,15 @@ export interface DeleteAccountInput {
   password: string;
 }
 
+export interface EmailChangeRequestInput {
+  new_email: string;
+  current_password: string;
+}
+
+export interface EmailChangeConfirmInput {
+  token: string;
+}
+
 export interface AuthResponse {
   user: User;
   access_token: string;

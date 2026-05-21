@@ -16,7 +16,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const from = (location.state as { from?: Location })?.from?.pathname ?? "/dashboard";
+  const navState = location.state as
+    | { from?: Location; notice?: string }
+    | null;
+  const from = navState?.from?.pathname ?? "/dashboard";
+  const notice = navState?.notice ?? null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -129,6 +133,12 @@ export default function LoginPage() {
             />
             Manter conectada por 30 dias
           </label>
+
+          {notice && !error && (
+            <p className="text-sm text-success-400 bg-success-500/10 border border-success-500/30 rounded-lg px-3 py-2">
+              {notice}
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-danger-500 bg-danger-500/10 border border-danger-500/30 rounded-lg px-3 py-2">

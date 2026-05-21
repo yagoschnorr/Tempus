@@ -3,6 +3,8 @@ import type {
   AuthResponse,
   ChangePasswordInput,
   DeleteAccountInput,
+  EmailChangeConfirmInput,
+  EmailChangeRequestInput,
   UpdateProfileInput,
   User,
 } from "@/lib/api/types";
@@ -36,5 +38,16 @@ export const authApi = {
 
   deleteAccount(input: DeleteAccountInput) {
     return api<void>("/auth/me", { method: "DELETE", json: input });
+  },
+
+  requestEmailChange(input: EmailChangeRequestInput) {
+    return api<void>("/auth/me/email/change-request", {
+      method: "POST",
+      json: input,
+    });
+  },
+
+  confirmEmailChange(input: EmailChangeConfirmInput) {
+    return api<void>("/auth/email/confirm", { method: "POST", json: input });
   },
 };

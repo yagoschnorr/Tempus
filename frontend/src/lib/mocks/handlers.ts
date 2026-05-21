@@ -136,6 +136,11 @@ const authHandlers = [
     resetMockState();
     return new HttpResponse(null, { status: 204 });
   }),
+
+  // Endpoints de troca de email NÃO têm mock: o pattern `/api/auth/*` do
+  // passthrough em browser.ts só cobre paths de 1 segmento (ex: `/api/auth/me`).
+  // Para `/api/auth/me/email/change-request` cair direto no backend, basta
+  // não ter handler aqui — MSW deixa requests sem match seguirem pra rede.
 ];
 
 // =============================================================================
