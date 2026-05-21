@@ -3,18 +3,17 @@
 Contrato (ultraplan §3 — Notebooks + Notes / Alberto — Sprint 3, dia 1-2):
 
 Notebooks:
-  GET    /notebooks                    → lista de notebooks do usuário
-  POST   /notebooks                    → criar notebook
-  PATCH  /notebooks/{notebook_id}      → editar título/descrição/cor
-  DELETE /notebooks/{notebook_id}      → remover (CASCADE em notes)
+  GET    /notebooks                          → lista de notebooks do usuário
+  POST   /notebooks                          → criar notebook
+  PATCH  /notebooks/{notebook_id}            → editar título/descrição/cor
+  DELETE /notebooks/{notebook_id}            → remover (CASCADE em notes)
 
 Notes:
-  GET    /notebooks/{notebook_id}/notes          → lista de notes do notebook
-  POST   /notebooks/{notebook_id}/notes          → criar note
-  PATCH  /notes/{note_id}                        → editar título/conteúdo
-  DELETE /notes/{note_id}                        → remover note
-  POST   /notes/{note_id}/summary                → resumo via IA (análogo ao
-                                                   summary de documento)
+  GET    /notebooks/{notebook_id}/notes      → lista de notes do notebook
+  POST   /notebooks/{notebook_id}/notes      → criar note
+  PATCH  /notebooks/notes/{note_id}          → editar título/conteúdo
+  DELETE /notebooks/notes/{note_id}          → remover note
+  POST   /notebooks/notes/{note_id}/summary  → resumo via IA
 """
 from __future__ import annotations
 
@@ -27,7 +26,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.integrations.openai_client import OpenAIClient, get_openai
-from app.models.notebook import Note, Notebook
 from app.models.user import User
 from app.schemas.notebook import (
     NotebookCreate,
@@ -38,42 +36,15 @@ from app.schemas.notebook import (
     NoteSummaryOut,
     NoteUpdate,
 )
+from app.services import notebook_service
 
 router = APIRouter()
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _get_notebook_or_404(db: Session, user: User, notebook_id: UUID) -> Notebook:
-    notebook = (
-        db.query(Notebook)
-        .filter(Notebook.id == notebook_id, Notebook.user_id == user.id)
-        .first()
-    )
-    if not notebook:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notebook não encontrado",
-        )
-    return notebook
-
-
-def _get_note_or_404(db: Session, user: User, note_id: UUID) -> Note:
-    """Busca a note garantindo que pertence ao usuário via JOIN com notebooks."""
-    note = (
-        db.query(Note)
-        .join(Notebook, Note.notebook_id == Notebook.id)
-        .filter(Note.id == note_id, Notebook.user_id == user.id)
-        .first()
-    )
-    if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note não encontrada",
-        )
-    return note
+_SUMMARY_SYSTEM = (
+    "Você é um assistente acadêmico. Dado o conteúdo de uma nota de estudos, "
+    "produza um resumo claro e conciso em português do Brasil, "
+    "destacando os pontos principais em no máximo 5 frases."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,12 +56,7 @@ def list_notebooks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Notebook)
-        .filter(Notebook.user_id == current_user.id)
-        .order_by(Notebook.created_at.desc())
-        .all()
-    )
+    return notebook_service.list_user_notebooks(db, current_user)
 
 
 @router.post("", response_model=NotebookOut, status_code=status.HTTP_201_CREATED)
@@ -99,16 +65,7 @@ def create_notebook(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notebook = Notebook(
-        user_id=current_user.id,
-        title=payload.title,
-        description=payload.description,
-        color=payload.color,
-    )
-    db.add(notebook)
-    db.commit()
-    db.refresh(notebook)
-    return notebook
+    return notebook_service.create_notebook(db, current_user, payload)
 
 
 @router.patch("/{notebook_id}", response_model=NotebookOut)
@@ -118,15 +75,7 @@ def update_notebook(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notebook = _get_notebook_or_404(db, current_user, notebook_id)
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(notebook, field, value)
-
-    db.commit()
-    db.refresh(notebook)
-    return notebook
+    return notebook_service.update_notebook(db, current_user, notebook_id, payload)
 
 
 @router.delete("/{notebook_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -135,9 +84,7 @@ def delete_notebook(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notebook = _get_notebook_or_404(db, current_user, notebook_id)
-    db.delete(notebook)
-    db.commit()
+    notebook_service.delete_notebook(db, current_user, notebook_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -151,15 +98,7 @@ def list_notes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Garante que o notebook pertence ao usuário antes de listar
-    _get_notebook_or_404(db, current_user, notebook_id)
-
-    return (
-        db.query(Note)
-        .filter(Note.notebook_id == notebook_id)
-        .order_by(Note.updated_at.desc())
-        .all()
-    )
+    return notebook_service.list_notebook_notes(db, current_user, notebook_id)
 
 
 @router.post(
@@ -173,17 +112,7 @@ def create_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _get_notebook_or_404(db, current_user, notebook_id)
-
-    note = Note(
-        notebook_id=notebook_id,
-        title=payload.title,
-        content=payload.content,
-    )
-    db.add(note)
-    db.commit()
-    db.refresh(note)
-    return note
+    return notebook_service.create_note(db, current_user, notebook_id, payload)
 
 
 @router.patch("/notes/{note_id}", response_model=NoteOut)
@@ -193,15 +122,7 @@ def update_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = _get_note_or_404(db, current_user, note_id)
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(note, field, value)
-
-    db.commit()
-    db.refresh(note)
-    return note
+    return notebook_service.update_note(db, current_user, note_id, payload)
 
 
 @router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -210,22 +131,13 @@ def delete_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = _get_note_or_404(db, current_user, note_id)
-    db.delete(note)
-    db.commit()
+    notebook_service.delete_note(db, current_user, note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
-# IA: resumo de note  (análogo ao POST /documents/{id}/summary)
+# IA: resumo de note
 # ---------------------------------------------------------------------------
-
-_SUMMARY_SYSTEM = (
-    "Você é um assistente acadêmico. Dado o conteúdo de uma nota de estudos, "
-    "produza um resumo claro e conciso em português do Brasil, "
-    "destacando os pontos principais em no máximo 5 frases."
-)
-
 
 @router.post("/notes/{note_id}/summary", response_model=NoteSummaryOut)
 def summarize_note(
@@ -234,7 +146,7 @@ def summarize_note(
     current_user: User = Depends(get_current_user),
     openai: OpenAIClient = Depends(get_openai),
 ):
-    note = _get_note_or_404(db, current_user, note_id)
+    note = notebook_service.get_user_note(db, current_user, note_id)
 
     if not note.content.strip():
         raise HTTPException(
