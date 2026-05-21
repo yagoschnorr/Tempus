@@ -13,5 +13,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1
 httpx
+resend
 pytest
 pytest-cov
