@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Clock, Flame, Layers, Target } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Flame, Layers, Target, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 interface Metric {
@@ -7,7 +7,7 @@ interface Metric {
   unit?: string;
   delta: number;
   deltaLabel: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
 }
 
 const metrics: Metric[] = [
