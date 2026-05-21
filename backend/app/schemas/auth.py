@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserResponse
 
@@ -16,3 +16,12 @@ class PasswordChange(BaseModel):
 
 class AccountDelete(BaseModel):
     password: str = Field(..., min_length=1)
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    current_password: str = Field(..., min_length=1)
+
+
+class EmailChangeConfirm(BaseModel):
+    token: str = Field(..., min_length=1, max_length=128)

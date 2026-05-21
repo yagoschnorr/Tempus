@@ -5,7 +5,13 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.deps import get_current_user
 from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
-from app.schemas.auth import AccountDelete, AuthResponse, PasswordChange
+from app.schemas.auth import (
+    AccountDelete,
+    AuthResponse,
+    EmailChangeConfirm,
+    EmailChangeRequest,
+    PasswordChange,
+)
 from app.services import auth_service
 from app.models.user import User
 
@@ -64,3 +70,26 @@ def delete_current_user(
 ):
     """Exclui permanentemente a conta logada. Cascade do banco apaga dados relacionados."""
     auth_service.delete_user_account(db, current_user, payload.password)
+
+@router.post("/me/email/change-request", status_code=status.HTTP_204_NO_CONTENT)
+def request_email_change(
+    payload: EmailChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Inicia troca de email: valida senha, gera token e envia email de verificação
+    pro novo endereço. A troca só efetiva quando o usuário clicar no link.
+    """
+    auth_service.request_email_change(
+        db, current_user, payload.new_email, payload.current_password
+    )
+
+@router.post("/email/confirm", status_code=status.HTTP_204_NO_CONTENT)
+def confirm_email_change(
+    payload: EmailChangeConfirm,
+    db: Session = Depends(get_db),
+):
+    """Confirma a troca de email a partir do token enviado por email. Rota pública
+    (não exige JWT) — o token é a prova de posse do novo endereço.
+    """
+    auth_service.confirm_email_change(db, payload.token)

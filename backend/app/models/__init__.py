@@ -9,3 +9,4 @@ from app.models.quiz import Quiz, QuizQuestion, QuizAnswer, quiz_sources, QuizSo
 from app.models.study_plan import StudyPlan, StudyPlanSubject, StudyPlanStatus, StudyPlanPriority
 from app.models.notebook import Notebook, Note
 from app.models.progress import ProgressReport, ProgressReportSubject
+from app.models.email_change_request import EmailChangeRequest
