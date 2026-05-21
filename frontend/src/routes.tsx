@@ -4,6 +4,7 @@ import { RequireAuth } from "./lib/auth/RequireAuth";
 
 import LoginPage from "./features/auth/pages/LoginPage";
 import RegisterPage from "./features/auth/pages/RegisterPage";
+import EmailConfirmPage from "./features/auth/pages/EmailConfirmPage";
 import SubjectsPage from "./features/subjects";
 import TimerPage from "./features/timer";
 import DocumentsPage from "./features/documents";
@@ -16,6 +17,7 @@ import DashboardPage from "./features/dashboard";
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/auth/email/confirm", element: <EmailConfirmPage /> },
   {
     element: (
       <RequireAuth>
