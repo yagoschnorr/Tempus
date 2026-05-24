@@ -1,125 +1,189 @@
-import { FileText, Send, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { Button } from "@/components/Button";
+import { useEffect, useMemo, useState } from "react";
+import { Toast } from "@/components/Toast";
+import type { ChatSession, UUID } from "@/lib/api/types";
+import { useSubjects } from "@/features/subjects/hooks/useSubjects";
+import { ChatInput } from "./components/ChatInput";
+import { ChatSidebar } from "./components/ChatSidebar";
+import { EmptyState } from "./components/EmptyState";
+import { MessageList } from "./components/MessageList";
+import { NewConversationModal } from "./components/NewConversationModal";
+import { useChat } from "./hooks/useChat";
+import { useChatSessions } from "./hooks/useChatSessions";
 
-interface Message {
-  role: "user" | "assistant";
-  text: string;
-  sources?: { document: string; page: number; snippet: string }[];
-}
-
-const initialMessages: Message[] = [
-  {
-    role: "user",
-    text: "Por que o Jacobiano aparece quando trocamos de variáveis numa integral tripla?",
-  },
-  {
-    role: "assistant",
-    text: "O Jacobiano corrige a distorção de volume entre os dois sistemas de coordenadas. Quando você substitui (x, y, z) por (u, v, w) via uma transformação T, cada pequeno cubo no espaço (u, v, w) é mapeado para um paralelepípedo no espaço (x, y, z) — o |det J| mede o fator de expansão/contração desse volume.",
-    sources: [
-      {
-        document: "Integrais Triplas — Notas de aula.pdf",
-        page: 14,
-        snippet:
-          "O determinante da matriz Jacobiana mede a razão entre os volumes infinitesimais antes e depois da transformação...",
-      },
-      {
-        document: "Stewart — Cálculo, vol. 2.pdf",
-        page: 1054,
-        snippet:
-          "Teorema da mudança de variáveis: ∫∫∫_R f(x,y,z) dV = ∫∫∫_S f(g(u,v,w)) |∂(x,y,z)/∂(u,v,w)| dV'",
-      },
-    ],
-  },
-];
-
-const subjects = ["Cálculo 2", "POO", "Banco de Dados II", "Redes"];
-
+/**
+ * Tela do UC10 — Chat de dúvidas com IA via RAG por matéria.
+ *
+ * Estado central: `activeSessionId`.
+ *   - `null` + `pendingSubjectId` setado → modo "nova conversa". O primeiro
+ *     `ask()` cria a sessão no backend e devolve o id.
+ *   - `UUID` → sessão existente carregada via GET /chat/sessions/{id}.
+ */
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [input, setInput] = useState("");
-  const [subject, setSubject] = useState("Cálculo 2");
+  const { subjects, loading: subjectsLoading } = useSubjects();
+  const sessions = useChatSessions();
 
-  function onSend(e: FormEvent) {
-    e.preventDefault();
-    if (!input.trim()) return;
-    setMessages((m) => [...m, { role: "user", text: input }]);
-    setInput("");
+  const [activeSessionId, setActiveSessionId] = useState<UUID | null>(null);
+  const [pendingSubjectId, setPendingSubjectId] = useState<UUID | null>(null);
+  const [newModalOpen, setNewModalOpen] = useState(false);
+  const [toast, setToast] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const chat = useChat({
+    sessionId: activeSessionId,
+    onSessionCreated: (id) => setActiveSessionId(id),
+  });
+
+  // Auto-dismiss do toast.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Mostra erros do hook como toast.
+  useEffect(() => {
+    if (chat.error) setToast({ kind: "error", message: chat.error });
+  }, [chat.error]);
+  useEffect(() => {
+    if (sessions.error) setToast({ kind: "error", message: sessions.error });
+  }, [sessions.error]);
+
+  const activeSession: ChatSession | null = useMemo(() => {
+    if (!activeSessionId) return null;
+    return sessions.sessions.find((s) => s.id === activeSessionId) ?? null;
+  }, [activeSessionId, sessions.sessions]);
+
+  // subject_id "vigente": da sessão ativa OU do dropdown pendente em nova conversa.
+  const effectiveSubjectId =
+    activeSession?.subject_id ?? pendingSubjectId ?? null;
+  const effectiveSubjectName = useMemo(() => {
+    if (!effectiveSubjectId) return null;
+    return subjects.find((s) => s.id === effectiveSubjectId)?.name ?? null;
+  }, [effectiveSubjectId, subjects]);
+
+  function handleNew() {
+    setNewModalOpen(true);
   }
 
+  function handleConfirmNew(subjectId: UUID) {
+    setActiveSessionId(null);
+    setPendingSubjectId(subjectId);
+    chat.clear();
+  }
+
+  function handleSelect(id: UUID) {
+    if (id === activeSessionId) return;
+    setActiveSessionId(id);
+  }
+
+  async function handleDelete(id: UUID) {
+    try {
+      await sessions.remove(id);
+      if (id === activeSessionId) {
+        setActiveSessionId(null);
+        chat.clear();
+      }
+      setToast({ kind: "success", message: "Conversa excluída" });
+    } catch {
+      setToast({ kind: "error", message: "Falha ao excluir conversa" });
+    }
+  }
+
+  async function handleRename(id: UUID, title: string) {
+    try {
+      await sessions.rename(id, title);
+    } catch {
+      setToast({ kind: "error", message: "Falha ao renomear conversa" });
+    }
+  }
+
+  async function handleAsk(question: string) {
+    const result = await chat.ask(question, { subjectId: pendingSubjectId });
+    if (result) {
+      // Após resposta, recarrega a sidebar pra refletir last_message_at
+      // e o título da sessão recém-criada.
+      void sessions.refresh();
+      setPendingSubjectId(null);
+    }
+  }
+
+  const inputBlockedReason =
+    !activeSessionId && !pendingSubjectId
+      ? 'Clique em "Nova conversa" para começar.'
+      : undefined;
+
   return (
-    <div className="space-y-6 max-w-5xl">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <p className="label-section mb-1">Tirar dúvida com IA · UC10</p>
-          <h1 className="text-3xl font-bold text-ink-100">Pergunte sobre seus documentos</h1>
-          <p className="text-ink-400 mt-1 max-w-2xl">
-            A IA busca trechos nos PDFs da matéria selecionada e responde com citações da origem.
-          </p>
-        </div>
-        <select
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          className="rounded-lg bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-200"
-        >
-          {subjects.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
+    // Altura FIXA em dvh: ancorada na viewport (não no main, que é flex-1 de um
+    // pai `min-h-full` e portanto pode crescer com o conteúdo). 4rem subtrai
+    // apenas o `py-8` do <main>; o header da página e o card dividem o resto
+    // via flex column + flex-1, dando o máximo de altura ao card.
+    <div
+      className="flex flex-col max-w-[1200px]"
+      style={{ height: "calc(100dvh - 4rem)" }}
+    >
+      <header className="shrink-0 mb-4">
+        <p className="label-section mb-1">Tirar dúvida com IA · UC10</p>
+        <h1 className="text-2xl font-bold text-ink-100">
+          Pergunte sobre seus documentos
+        </h1>
       </header>
 
-      <section className="card flex flex-col" style={{ minHeight: "60vh" }}>
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {messages.map((m, i) => (
-            <article key={i} className="flex gap-3">
-              <div
-                className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold ${
-                  m.role === "user"
-                    ? "bg-ink-900 border border-ink-700 text-ink-200"
-                    : "bg-brand-500/15 border border-brand-500/30 text-brand-300"
-                }`}
-              >
-                {m.role === "user" ? "MV" : <Sparkles size={14} />}
-              </div>
-              <div className="flex-1 space-y-3">
-                <p className="text-sm text-ink-200 leading-relaxed">{m.text}</p>
-                {m.sources && (
-                  <div className="space-y-2">
-                    <p className="label-section">Fontes</p>
-                    {m.sources.map((src, j) => (
-                      <div
-                        key={j}
-                        className="card-soft p-3 flex gap-3 text-xs hover:border-brand-500/40 cursor-pointer transition"
-                      >
-                        <FileText size={14} className="shrink-0 text-brand-400 mt-0.5" />
-                        <div className="min-w-0">
-                          <p className="text-ink-100 font-medium">
-                            {src.document}{" "}
-                            <span className="text-ink-500 font-normal">· pág. {src.page}</span>
-                          </p>
-                          <p className="text-ink-400 mt-1 italic">"{src.snippet}"</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
+      <div className="card flex-1 min-h-0 overflow-hidden flex flex-col lg:flex-row">
+        <ChatSidebar
+          sessions={sessions.sessions}
+          subjects={subjects}
+          filter={sessions.filter}
+          onFilterChange={sessions.setFilter}
+          activeSessionId={activeSessionId}
+          loading={sessions.loading || subjectsLoading}
+          onSelect={handleSelect}
+          onNew={handleNew}
+          onRename={handleRename}
+          onDelete={handleDelete}
+        />
 
-        <form onSubmit={onSend} className="border-t border-ink-700 p-4 flex gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Pergunte algo sobre ${subject}...`}
-            className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-2.5 text-ink-100 placeholder:text-ink-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
-          />
-          <Button type="submit" disabled={!input.trim()}>
-            <Send size={14} /> Enviar
-          </Button>
-        </form>
-      </section>
+        <section className="flex-1 flex flex-col min-h-0">
+          {!activeSessionId && !pendingSubjectId ? (
+            <EmptyState
+              title="Nenhuma conversa selecionada"
+              description='Clique em "Nova conversa" na barra lateral ou escolha uma da lista para retomar.'
+            />
+          ) : (
+            <>
+              <header className="border-b border-ink-700 px-5 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-ink-100 truncate">
+                    {activeSession?.title ?? "Nova conversa"}
+                  </h2>
+                  {effectiveSubjectName && (
+                    <p className="text-[11px] text-ink-500">
+                      Matéria: {effectiveSubjectName}
+                    </p>
+                  )}
+                </div>
+              </header>
+              <MessageList messages={chat.messages} sending={chat.sending} />
+              <ChatInput
+                disabled={chat.loading}
+                blockedReason={inputBlockedReason}
+                onSubmit={handleAsk}
+              />
+            </>
+          )}
+        </section>
+      </div>
+
+      <NewConversationModal
+        open={newModalOpen}
+        onClose={() => setNewModalOpen(false)}
+        subjects={subjects}
+        defaultSubjectId={sessions.filter}
+        onConfirm={handleConfirmNew}
+      />
+
+      {toast && <Toast kind={toast.kind} message={toast.message} />}
     </div>
   );
 }
