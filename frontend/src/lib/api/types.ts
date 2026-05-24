@@ -153,3 +153,55 @@ export interface AnswerResult {
   correct_answer: QuizOption;
   explanation: string;
 }
+
+// =============================================================================
+// Chat (UC10)
+// =============================================================================
+
+export type ChatRole = "user" | "assistant";
+
+export interface ChatSource {
+  id: UUID;
+  document_id: UUID;
+  chunk_id: UUID | null;
+  page_number: number | null;
+  snippet: string;
+  score: number | null;
+  rank: number;
+}
+
+export interface ChatMessage {
+  id: UUID;
+  session_id: UUID;
+  role: ChatRole;
+  content: string;
+  created_at: string;
+  sources: ChatSource[];
+}
+
+export interface ChatSession {
+  id: UUID;
+  user_id: UUID;
+  subject_id: UUID | null;
+  title: string;
+  created_at: string;
+  last_message_at: string;
+}
+
+export interface ChatSessionDetail extends ChatSession {
+  messages: ChatMessage[];
+}
+
+export interface AskRequest {
+  subject_id?: UUID;
+  question: string;
+}
+
+export interface AskResponse {
+  session_id: UUID;
+  message: ChatMessage;
+}
+
+export interface RenameSessionInput {
+  title: string;
+}
