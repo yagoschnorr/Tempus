@@ -12,6 +12,7 @@ const backendReadyPassthrough = [
   http.all("/api/subjects/*", () => passthrough()),
   http.all("/api/quizzes", () => passthrough()),
   http.all("/api/quizzes/*", () => passthrough()),
+  http.all("/api/chat/*", () => passthrough()),
 ];
 
 export const worker = setupWorker(...backendReadyPassthrough, ...handlers);

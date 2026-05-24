@@ -2,8 +2,13 @@ import { http, HttpResponse } from "msw";
 import type {
   AnswerInput,
   AnswerResult,
+  AskRequest,
+  AskResponse,
   AuthResponse,
   ChangePasswordInput,
+  ChatMessage,
+  ChatSession,
+  ChatSessionDetail,
   CreateQuizInput,
   CreateSessionInput,
   CreateSubjectInput,
@@ -11,6 +16,7 @@ import type {
   Quiz,
   QuizOption,
   QuizQuestion,
+  RenameSessionInput,
   StudySession,
   Subject,
   UpdateProfileInput,
@@ -65,6 +71,8 @@ let subjects: Subject[] = seedSubjects();
 let sessions: StudySession[] = [];
 let quizzes: Quiz[] = [];
 const quizAnswers = new Map<UUID, AnswerResult[]>();
+let chatSessions: ChatSession[] = [];
+const chatMessages = new Map<UUID, ChatMessage[]>();
 let counter = 100;
 
 export const resetMockState = () => {
@@ -72,6 +80,8 @@ export const resetMockState = () => {
   sessions = [];
   quizzes = [];
   quizAnswers.clear();
+  chatSessions = [];
+  chatMessages.clear();
   counter = 100;
 };
 
@@ -400,6 +410,141 @@ const quizzesHandlers = [
 ];
 
 // =============================================================================
+// Chat (UC10)
+// =============================================================================
+
+function buildTitle(question: string): string {
+  const cleaned = question.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= 60) return cleaned;
+  return cleaned.slice(0, 59).trimEnd() + "…";
+}
+
+function mockAnswer(question: string): string {
+  // Resposta determinística mas levemente "personalizada" pela pergunta.
+  return (
+    `Resposta simulada do mock para: "${question.slice(0, 80)}".\n\n` +
+    "Esse texto vem do MSW; quando o backend real estiver disponível, " +
+    "ele será substituído pela resposta da IA."
+  );
+}
+
+const chatHandlers = [
+  http.get("/api/chat/sessions", ({ request }) => {
+    const url = new URL(request.url);
+    const subjectId = url.searchParams.get("subject_id");
+    const list = subjectId
+      ? chatSessions.filter((s) => s.subject_id === subjectId)
+      : chatSessions;
+    const sorted = [...list].sort((a, b) =>
+      b.last_message_at.localeCompare(a.last_message_at)
+    );
+    return HttpResponse.json(sorted);
+  }),
+
+  http.get("/api/chat/sessions/:id", ({ params }) => {
+    const session = chatSessions.find((s) => s.id === params.id);
+    if (!session) return error(404, "conversa não encontrada");
+    const detail: ChatSessionDetail = {
+      ...session,
+      messages: chatMessages.get(session.id) ?? [],
+    };
+    return HttpResponse.json(detail);
+  }),
+
+  http.patch("/api/chat/sessions/:id", async ({ params, request }) => {
+    const session = chatSessions.find((s) => s.id === params.id);
+    if (!session) return error(404, "conversa não encontrada");
+    const body = (await request.json()) as RenameSessionInput;
+    if (!body?.title?.trim()) return error(400, "title é obrigatório");
+    session.title = body.title.trim();
+    return HttpResponse.json(session);
+  }),
+
+  http.delete("/api/chat/sessions/:id", ({ params }) => {
+    const idx = chatSessions.findIndex((s) => s.id === params.id);
+    if (idx === -1) return error(404, "conversa não encontrada");
+    chatSessions.splice(idx, 1);
+    chatMessages.delete(params.id as UUID);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("/api/chat/ask", async ({ request }) => {
+    const body = (await request.json()) as AskRequest;
+    if (!body?.subject_id) {
+      return error(422, "subject_id é obrigatório para iniciar uma conversa");
+    }
+    if (!body.question?.trim()) {
+      return error(422, "question é obrigatório");
+    }
+    const sessionId = newId("cs") as UUID;
+    const session: ChatSession = {
+      id: sessionId,
+      user_id: fakeUser.id,
+      subject_id: body.subject_id,
+      title: buildTitle(body.question),
+      created_at: now(),
+      last_message_at: now(),
+    };
+    chatSessions.unshift(session);
+
+    const userMsg: ChatMessage = {
+      id: newId("cm") as UUID,
+      session_id: sessionId,
+      role: "user",
+      content: body.question,
+      created_at: now(),
+      sources: [],
+    };
+    const assistantMsg: ChatMessage = {
+      id: newId("cm") as UUID,
+      session_id: sessionId,
+      role: "assistant",
+      content: mockAnswer(body.question),
+      created_at: now(),
+      sources: [],
+    };
+    chatMessages.set(sessionId, [userMsg, assistantMsg]);
+
+    const res: AskResponse = { session_id: sessionId, message: assistantMsg };
+    return HttpResponse.json(res, { status: 201 });
+  }),
+
+  http.post("/api/chat/sessions/:id/ask", async ({ params, request }) => {
+    const session = chatSessions.find((s) => s.id === params.id);
+    if (!session) return error(404, "conversa não encontrada");
+    const body = (await request.json()) as AskRequest;
+    if (!body.question?.trim()) return error(422, "question é obrigatório");
+
+    const list = chatMessages.get(session.id) ?? [];
+    const userMsg: ChatMessage = {
+      id: newId("cm") as UUID,
+      session_id: session.id,
+      role: "user",
+      content: body.question,
+      created_at: now(),
+      sources: [],
+    };
+    const assistantMsg: ChatMessage = {
+      id: newId("cm") as UUID,
+      session_id: session.id,
+      role: "assistant",
+      content: mockAnswer(body.question),
+      created_at: now(),
+      sources: [],
+    };
+    list.push(userMsg, assistantMsg);
+    chatMessages.set(session.id, list);
+    session.last_message_at = assistantMsg.created_at;
+
+    const res: AskResponse = {
+      session_id: session.id,
+      message: assistantMsg,
+    };
+    return HttpResponse.json(res);
+  }),
+];
+
+// =============================================================================
 // Aggregate
 // =============================================================================
 
@@ -408,4 +553,5 @@ export const handlers = [
   ...subjectsHandlers,
   ...sessionsHandlers,
   ...quizzesHandlers,
+  ...chatHandlers,
 ];
