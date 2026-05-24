@@ -9,16 +9,23 @@ import type {
   ChatMessage,
   ChatSession,
   ChatSessionDetail,
+  CreateNoteInput,
+  CreateNotebookInput,
   CreateQuizInput,
   CreateSessionInput,
   CreateSubjectInput,
   DeleteAccountInput,
+  Note,
+  NoteSummary,
+  Notebook,
   Quiz,
   QuizOption,
   QuizQuestion,
   RenameSessionInput,
   StudySession,
   Subject,
+  UpdateNoteInput,
+  UpdateNotebookInput,
   UpdateProfileInput,
   UpdateSubjectInput,
   UUID,
@@ -73,6 +80,21 @@ let quizzes: Quiz[] = [];
 const quizAnswers = new Map<UUID, AnswerResult[]>();
 let chatSessions: ChatSession[] = [];
 const chatMessages = new Map<UUID, ChatMessage[]>();
+// Notebooks: representação "fria" (sem agregados). Os agregados notes_count
+// e last_activity_at são calculados no momento da resposta a partir do mapa
+// notesByNotebook — espelha o que o backend faz com COUNT/MAX em SQL.
+interface NotebookRow {
+  id: UUID;
+  user_id: UUID;
+  title: string;
+  description: string | null;
+  color: string;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+let notebookRows: NotebookRow[] = [];
+const notesByNotebook = new Map<UUID, Note[]>();
 let counter = 100;
 
 export const resetMockState = () => {
@@ -82,6 +104,8 @@ export const resetMockState = () => {
   quizAnswers.clear();
   chatSessions = [];
   chatMessages.clear();
+  notebookRows = [];
+  notesByNotebook.clear();
   counter = 100;
 };
 
@@ -545,6 +569,161 @@ const chatHandlers = [
 ];
 
 // =============================================================================
+// Notebooks + Notes
+// =============================================================================
+
+function notebookAggregates(notebookId: UUID): {
+  notes_count: number;
+  max_note_updated_at: string | null;
+} {
+  const list = notesByNotebook.get(notebookId) ?? [];
+  if (list.length === 0) return { notes_count: 0, max_note_updated_at: null };
+  const max = list.reduce(
+    (acc, n) => (n.updated_at > acc ? n.updated_at : acc),
+    list[0].updated_at
+  );
+  return { notes_count: list.length, max_note_updated_at: max };
+}
+
+function toNotebookOut(row: NotebookRow): Notebook {
+  const { notes_count, max_note_updated_at } = notebookAggregates(row.id);
+  const last_activity_at =
+    max_note_updated_at && max_note_updated_at > row.updated_at
+      ? max_note_updated_at
+      : row.updated_at;
+  return { ...row, notes_count, last_activity_at };
+}
+
+function findNote(noteId: UUID): { note: Note; notebookId: UUID } | null {
+  for (const [notebookId, list] of notesByNotebook.entries()) {
+    const note = list.find((n) => n.id === noteId);
+    if (note) return { note, notebookId };
+  }
+  return null;
+}
+
+const notebooksHandlers = [
+  http.get("/api/notebooks", () => {
+    const outs = notebookRows.map(toNotebookOut);
+    // Fixados primeiro; dentro de cada grupo, ordena por last_activity_at desc.
+    outs.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.last_activity_at.localeCompare(a.last_activity_at);
+    });
+    return HttpResponse.json(outs);
+  }),
+
+  http.post("/api/notebooks", async ({ request }) => {
+    const body = (await request.json()) as CreateNotebookInput;
+    if (!body?.title?.trim()) return error(422, "title é obrigatório");
+    const stamp = now();
+    const row: NotebookRow = {
+      id: newId("nb") as UUID,
+      user_id: fakeUser.id,
+      title: body.title.trim(),
+      description: body.description ?? null,
+      color: body.color ?? "#0F6E56",
+      pinned: false,
+      created_at: stamp,
+      updated_at: stamp,
+    };
+    notebookRows.push(row);
+    notesByNotebook.set(row.id, []);
+    return HttpResponse.json(toNotebookOut(row), { status: 201 });
+  }),
+
+  http.patch("/api/notebooks/:id", async ({ params, request }) => {
+    const row = notebookRows.find((n) => n.id === params.id);
+    if (!row) return error(404, "Notebook não encontrado");
+    const body = (await request.json()) as UpdateNotebookInput;
+    if (body.title !== undefined) {
+      if (!body.title.trim()) return error(422, "title não pode ser vazio");
+      row.title = body.title.trim();
+    }
+    if (body.description !== undefined) row.description = body.description;
+    if (body.color !== undefined) row.color = body.color;
+    if (body.pinned !== undefined) row.pinned = body.pinned;
+    row.updated_at = now();
+    return HttpResponse.json(toNotebookOut(row));
+  }),
+
+  http.delete("/api/notebooks/:id", ({ params }) => {
+    const idx = notebookRows.findIndex((n) => n.id === params.id);
+    if (idx === -1) return error(404, "Notebook não encontrado");
+    notebookRows.splice(idx, 1);
+    notesByNotebook.delete(params.id as UUID);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get("/api/notebooks/:id/notes", ({ params }) => {
+    if (!notebookRows.some((n) => n.id === params.id)) {
+      return error(404, "Notebook não encontrado");
+    }
+    const list = notesByNotebook.get(params.id as UUID) ?? [];
+    // Ordem espelha o backend: updated_at desc (note mais recente primeiro).
+    const sorted = [...list].sort((a, b) =>
+      b.updated_at.localeCompare(a.updated_at)
+    );
+    return HttpResponse.json(sorted);
+  }),
+
+  http.post("/api/notebooks/:id/notes", async ({ params, request }) => {
+    if (!notebookRows.some((n) => n.id === params.id)) {
+      return error(404, "Notebook não encontrado");
+    }
+    const body = (await request.json()) as CreateNoteInput;
+    if (!body?.title?.trim()) return error(422, "title é obrigatório");
+    const stamp = now();
+    const note: Note = {
+      id: newId("nt") as UUID,
+      notebook_id: params.id as UUID,
+      title: body.title.trim(),
+      content: body.content ?? "",
+      created_at: stamp,
+      updated_at: stamp,
+    };
+    notesByNotebook.get(params.id as UUID)!.push(note);
+    return HttpResponse.json(note, { status: 201 });
+  }),
+
+  http.patch("/api/notebooks/notes/:id", async ({ params, request }) => {
+    const found = findNote(params.id as UUID);
+    if (!found) return error(404, "Note não encontrada");
+    const body = (await request.json()) as UpdateNoteInput;
+    if (body.title !== undefined) {
+      if (!body.title.trim()) return error(422, "title não pode ser vazio");
+      found.note.title = body.title.trim();
+    }
+    if (body.content !== undefined) found.note.content = body.content;
+    found.note.updated_at = now();
+    return HttpResponse.json(found.note);
+  }),
+
+  http.delete("/api/notebooks/notes/:id", ({ params }) => {
+    const found = findNote(params.id as UUID);
+    if (!found) return error(404, "Note não encontrada");
+    const list = notesByNotebook.get(found.notebookId)!;
+    list.splice(list.indexOf(found.note), 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("/api/notebooks/notes/:id/summary", ({ params }) => {
+    const found = findNote(params.id as UUID);
+    if (!found) return error(404, "Note não encontrada");
+    if (!found.note.content.trim()) {
+      return error(
+        422,
+        "A note está vazia; adicione conteúdo antes de gerar o resumo."
+      );
+    }
+    const res: NoteSummary = {
+      summary: `Resumo simulado: ${found.note.content.slice(0, 60)}…`,
+    };
+    return HttpResponse.json(res);
+  }),
+];
+
+// =============================================================================
 // Aggregate
 // =============================================================================
 
@@ -554,4 +733,5 @@ export const handlers = [
   ...sessionsHandlers,
   ...quizzesHandlers,
   ...chatHandlers,
+  ...notebooksHandlers,
 ];

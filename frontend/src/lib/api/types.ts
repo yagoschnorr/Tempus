@@ -205,3 +205,58 @@ export interface AskResponse {
 export interface RenameSessionInput {
   title: string;
 }
+
+// =============================================================================
+// Notebooks + Notes
+// =============================================================================
+
+export interface Notebook {
+  id: UUID;
+  user_id: UUID;
+  title: string;
+  description: string | null;
+  color: string;
+  pinned: boolean;
+  // Agregado calculado no backend: COUNT(notes) por notebook.
+  notes_count: number;
+  // Agregado calculado no backend: GREATEST(notebook.updated_at, MAX(notes.updated_at)).
+  last_activity_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNotebookInput {
+  title: string;
+  description?: string;
+  color?: string;
+}
+
+export interface UpdateNotebookInput {
+  title?: string;
+  description?: string | null;
+  color?: string;
+  pinned?: boolean;
+}
+
+export interface Note {
+  id: UUID;
+  notebook_id: UUID;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNoteInput {
+  title: string;
+  content?: string;
+}
+
+export interface UpdateNoteInput {
+  title?: string;
+  content?: string;
+}
+
+export interface NoteSummary {
+  summary: string;
+}
