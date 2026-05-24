@@ -10,3 +10,4 @@ from app.models.study_plan import StudyPlan, StudyPlanSubject, StudyPlanStatus, 
 from app.models.notebook import Notebook, Note
 from app.models.progress import ProgressReport, ProgressReportSubject
 from app.models.email_change_request import EmailChangeRequest
+from app.models.chat import ChatSession, ChatMessage, ChatMessageSource, ChatRole
