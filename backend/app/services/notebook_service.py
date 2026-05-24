@@ -9,16 +9,19 @@ Constraints do schema SQL espelhadas em código:
 """
 from __future__ import annotations
 
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.notebook import Note, Notebook
 from app.models.user import User
 from app.schemas.notebook import (
     NotebookCreate,
+    NotebookOut,
     NotebookUpdate,
     NoteCreate,
     NoteUpdate,
@@ -64,19 +67,69 @@ def _get_note_owned_by_user(
 
 
 # ---------------------------------------------------------------------------
-# Notebooks
+# Aggregates — notes_count + last_activity_at
 # ---------------------------------------------------------------------------
+# SQLite não suporta GREATEST(); calculamos o máximo em Python a partir do
+# MAX(notes.updated_at) agregado e do `notebook.updated_at` carregado.
 
-def list_user_notebooks(db: Session, user: User) -> List[Notebook]:
-    return (
-        db.query(Notebook)
-        .filter(Notebook.user_id == user.id)
-        .order_by(Notebook.created_at.desc())
-        .all()
+def _to_notebook_out(
+    notebook: Notebook,
+    notes_count: int,
+    max_note_updated_at: Optional[datetime],
+) -> NotebookOut:
+    last_activity = notebook.updated_at
+    if max_note_updated_at is not None and max_note_updated_at > last_activity:
+        last_activity = max_note_updated_at
+    return NotebookOut(
+        id=notebook.id,
+        user_id=notebook.user_id,
+        title=notebook.title,
+        description=notebook.description,
+        color=notebook.color,
+        pinned=notebook.pinned,
+        notes_count=notes_count,
+        last_activity_at=last_activity,
+        created_at=notebook.created_at,
+        updated_at=notebook.updated_at,
     )
 
 
-def create_notebook(db: Session, user: User, payload: NotebookCreate) -> Notebook:
+def _get_notebook_aggregates(
+    db: Session, notebook_id: UUID
+) -> tuple[int, Optional[datetime]]:
+    row = (
+        db.query(func.count(Note.id), func.max(Note.updated_at))
+        .filter(Note.notebook_id == notebook_id)
+        .one()
+    )
+    return int(row[0] or 0), row[1]
+
+
+# ---------------------------------------------------------------------------
+# Notebooks
+# ---------------------------------------------------------------------------
+
+def list_user_notebooks(db: Session, user: User) -> List[NotebookOut]:
+    notes_count_col = func.count(Note.id).label("notes_count")
+    max_note_updated_col = func.max(Note.updated_at).label("max_note_updated_at")
+
+    rows = (
+        db.query(Notebook, notes_count_col, max_note_updated_col)
+        .outerjoin(Note, Note.notebook_id == Notebook.id)
+        .filter(Notebook.user_id == user.id)
+        .group_by(Notebook.id)
+        .all()
+    )
+
+    outs = [_to_notebook_out(nb, count, max_at) for nb, count, max_at in rows]
+    # Fixados primeiro; dentro de cada grupo, ordena por última atividade desc.
+    # Tupla `(pinned, last_activity_at)` em ordem descendente coloca True (fixado)
+    # antes de False e dates novas antes das antigas.
+    outs.sort(key=lambda o: (o.pinned, o.last_activity_at), reverse=True)
+    return outs
+
+
+def create_notebook(db: Session, user: User, payload: NotebookCreate) -> NotebookOut:
     notebook = Notebook(
         user_id=user.id,
         title=payload.title,
@@ -86,7 +139,7 @@ def create_notebook(db: Session, user: User, payload: NotebookCreate) -> Noteboo
     db.add(notebook)
     db.commit()
     db.refresh(notebook)
-    return notebook
+    return _to_notebook_out(notebook, notes_count=0, max_note_updated_at=None)
 
 
 def get_user_notebook(db: Session, user: User, notebook_id: UUID) -> Notebook:
@@ -95,7 +148,7 @@ def get_user_notebook(db: Session, user: User, notebook_id: UUID) -> Notebook:
 
 def update_notebook(
     db: Session, user: User, notebook_id: UUID, payload: NotebookUpdate
-) -> Notebook:
+) -> NotebookOut:
     notebook = _get_notebook_owned_by_user(db, user.id, notebook_id)
 
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -103,7 +156,9 @@ def update_notebook(
 
     db.commit()
     db.refresh(notebook)
-    return notebook
+
+    notes_count, max_note_updated_at = _get_notebook_aggregates(db, notebook_id)
+    return _to_notebook_out(notebook, notes_count, max_note_updated_at)
 
 
 def delete_notebook(db: Session, user: User, notebook_id: UUID) -> None:

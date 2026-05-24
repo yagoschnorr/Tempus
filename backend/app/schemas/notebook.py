@@ -27,6 +27,7 @@ class NotebookUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    pinned: Optional[bool] = None
 
 
 # =============================================================================
@@ -38,6 +39,11 @@ class NotebookOut(BaseModel):
     title: str
     description: Optional[str]
     color: str
+    pinned: bool = False
+    notes_count: int = 0
+    # Maior data entre `updated_at` do notebook e `MAX(notes.updated_at)`.
+    # Reflete a última edição perceptível ao usuário (notebook OU qualquer note dentro).
+    last_activity_at: datetime
     created_at: datetime
     updated_at: datetime
 
