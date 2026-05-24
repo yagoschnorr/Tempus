@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BookOpen, Pencil, Pin, PinOff, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
@@ -17,6 +18,7 @@ function notesLabel(n: number) {
 }
 
 export default function NotebooksPage() {
+  const navigate = useNavigate();
   const { notebooks, loading, error, create, update, remove, togglePin } =
     useNotebooks();
 
@@ -114,6 +116,7 @@ export default function NotebooksPage() {
               <NotebookCard
                 key={nb.id}
                 notebook={nb}
+                onOpen={() => navigate(`/notebooks/${nb.id}`)}
                 onEdit={() => setFormState({ mode: "edit", notebook: nb })}
                 onDelete={() => setToDelete(nb)}
                 onTogglePin={() => handleTogglePin(nb)}
@@ -133,6 +136,7 @@ export default function NotebooksPage() {
               <NotebookRow
                 key={nb.id}
                 notebook={nb}
+                onOpen={() => navigate(`/notebooks/${nb.id}`)}
                 onEdit={() => setFormState({ mode: "edit", notebook: nb })}
                 onDelete={() => setToDelete(nb)}
                 onTogglePin={() => handleTogglePin(nb)}
@@ -168,14 +172,26 @@ export default function NotebooksPage() {
 
 interface ItemProps {
   notebook: Notebook;
+  onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
 }
 
-function NotebookCard({ notebook, onEdit, onDelete, onTogglePin }: ItemProps) {
+// Atalho pra ações: stopPropagation evita disparar onOpen quando clica num botão.
+function stopAndRun(fn: () => void) {
+  return (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fn();
+  };
+}
+
+function NotebookCard({ notebook, onOpen, onEdit, onDelete, onTogglePin }: ItemProps) {
   return (
-    <article className="card p-5 hover:border-brand-500/40 transition group relative">
+    <article
+      onClick={onOpen}
+      className="card p-5 hover:border-brand-500/40 transition group relative cursor-pointer"
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="pill bg-brand-500/15 text-brand-300 border border-brand-500/20">
           <Pin size={10} /> Fixado
@@ -189,6 +205,7 @@ function NotebookCard({ notebook, onEdit, onDelete, onTogglePin }: ItemProps) {
 
       <NotebookActions
         notebook={notebook}
+        onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
         onTogglePin={onTogglePin}
@@ -197,9 +214,12 @@ function NotebookCard({ notebook, onEdit, onDelete, onTogglePin }: ItemProps) {
   );
 }
 
-function NotebookRow({ notebook, onEdit, onDelete, onTogglePin }: ItemProps) {
+function NotebookRow({ notebook, onOpen, onEdit, onDelete, onTogglePin }: ItemProps) {
   return (
-    <article className="p-4 flex items-center gap-4 hover:bg-ink-900 transition group">
+    <article
+      onClick={onOpen}
+      className="p-4 flex items-center gap-4 hover:bg-ink-900 transition group cursor-pointer"
+    >
       <div
         className="w-9 h-9 rounded-lg border border-ink-700 flex items-center justify-center text-ink-400"
         style={{ backgroundColor: `${notebook.color}20` }}
@@ -215,6 +235,7 @@ function NotebookRow({ notebook, onEdit, onDelete, onTogglePin }: ItemProps) {
       </span>
       <NotebookActions
         notebook={notebook}
+        onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
         onTogglePin={onTogglePin}
@@ -234,7 +255,7 @@ function NotebookActions({
       <Button
         size="sm"
         variant="ghost"
-        onClick={onTogglePin}
+        onClick={stopAndRun(onTogglePin)}
         aria-label={notebook.pinned ? `Desafixar ${notebook.title}` : `Fixar ${notebook.title}`}
       >
         {notebook.pinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -242,7 +263,7 @@ function NotebookActions({
       <Button
         size="sm"
         variant="ghost"
-        onClick={onEdit}
+        onClick={stopAndRun(onEdit)}
         aria-label={`Editar ${notebook.title}`}
       >
         <Pencil size={14} />
@@ -250,7 +271,7 @@ function NotebookActions({
       <Button
         size="sm"
         variant="ghost"
-        onClick={onDelete}
+        onClick={stopAndRun(onDelete)}
         aria-label={`Excluir ${notebook.title}`}
         className="text-danger-500 hover:text-danger-500"
       >

@@ -11,6 +11,7 @@ import DocumentsPage from "./features/documents";
 import QuizPage from "./features/quiz";
 import StudyPlanPage from "./features/study-plan";
 import NotebooksPage from "./features/notebooks";
+import NotebookDetailPage from "./features/notebooks/detail";
 import ChatPage from "./features/chat";
 import DashboardPage from "./features/dashboard";
 
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "/quiz", element: <QuizPage /> },
       { path: "/study-plan", element: <StudyPlanPage /> },
       { path: "/notebooks", element: <NotebooksPage /> },
+      { path: "/notebooks/:id", element: <NotebookDetailPage /> },
       { path: "/chat", element: <ChatPage /> },
       { path: "/dashboard", element: <DashboardPage /> },
     ],
