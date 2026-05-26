@@ -4,12 +4,10 @@ import {
   BookOpen,
   Calendar,
   FileText,
-  Flame,
   Home,
   Layers,
   LogOut,
   MessageCircle,
-  Tag,
   Timer as TimerIcon,
   HelpCircle,
 } from "lucide-react";
@@ -20,7 +18,7 @@ const navMain = [
   { to: "/dashboard", label: "Início", icon: Home },
   { to: "/timer", label: "Cronômetro", icon: TimerIcon },
   { to: "/documents", label: "Documentos", icon: FileText },
-  { to: "/quiz", label: "Quizzes", icon: HelpCircle, badge: "novo" },
+  { to: "/quiz", label: "Quizzes", icon: HelpCircle },
   { to: "/study-plan", label: "Plano de estudos", icon: Calendar },
   { to: "/notebooks", label: "Cadernos", icon: BookOpen },
   { to: "/chat", label: "Tirar dúvida", icon: MessageCircle },
@@ -28,7 +26,6 @@ const navMain = [
 
 const navOrg = [
   { to: "/subjects", label: "Matérias", icon: Layers },
-  { to: "/tags", label: "Tags", icon: Tag },
 ];
 
 function initialsOf(name: string) {
@@ -61,7 +58,7 @@ export default function App() {
         <nav className="px-3 py-2 flex-1 overflow-y-auto">
           <p className="label-section px-3 mb-2">Navegação</p>
           <ul className="space-y-0.5 mb-6">
-            {navMain.map(({ to, label, icon: Icon, badge }) => (
+            {navMain.map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <NavLink
                   to={to}
@@ -75,11 +72,6 @@ export default function App() {
                 >
                   <Icon size={16} className="shrink-0" />
                   <span className="flex-1">{label}</span>
-                  {badge && (
-                    <span className="pill bg-brand-500/15 text-brand-300 border border-brand-500/20">
-                      {badge}
-                    </span>
-                  )}
                 </NavLink>
               </li>
             ))}
@@ -108,17 +100,6 @@ export default function App() {
         </nav>
 
         <div className="px-3 pb-3 space-y-3">
-          <div className="card p-3">
-            <div className="flex items-center gap-2 text-ink-200">
-              <Flame size={14} className="text-accent-orange" />
-              <span className="text-xs font-semibold">14 dias seguidos</span>
-            </div>
-            <p className="text-xs text-ink-400 mt-1">
-              Faltam <span className="text-ink-200 font-medium">1h 20min</span> para a meta de
-              hoje.
-            </p>
-          </div>
-
           <div className="flex items-center gap-3 px-2 py-2">
             <button
               type="button"
