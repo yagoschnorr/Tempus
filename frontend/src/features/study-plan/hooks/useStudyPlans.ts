@@ -10,6 +10,7 @@ import { studyPlansApi } from "../api";
 
 interface UseStudyPlans {
   plans: StudyPlan[];
+  activePlans: StudyPlan[];
   activePlan: StudyPlan | null;
   loading: boolean;
   error: string | null;
@@ -55,15 +56,19 @@ export function useStudyPlans(): UseStudyPlans {
     [],
   );
 
-  // Backend retorna ordenado desc por created_at, então o primeiro com status
-  // active é o mais recente — coerente quando há mais de um ativo.
-  const activePlan = useMemo(
-    () => plans.find((p) => p.status === "active") ?? null,
+  // Backend retorna ordenado desc por created_at; mantém a ordem na lista.
+  const activePlans = useMemo(
+    () => plans.filter((p) => p.status === "active"),
     [plans],
   );
 
+  // activePlan (singular) = primeiro ativo. Mantido para callers que só usam
+  // "o plano ativo" (ex.: header do Dashboard mostrando próxima prova).
+  const activePlan = activePlans[0] ?? null;
+
   return {
     plans,
+    activePlans,
     activePlan,
     loading,
     error,
