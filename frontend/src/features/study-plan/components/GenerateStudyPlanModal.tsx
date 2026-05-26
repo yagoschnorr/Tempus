@@ -137,7 +137,6 @@ export function GenerateStudyPlanModal({
             <input
               type="number"
               step="0.5"
-              min="0.5"
               value={dailyHours}
               onChange={(e) => setDailyHours(e.target.value)}
               className="w-full rounded-lg bg-ink-900 border border-ink-700 px-3 py-2.5 text-ink-100 focus:outline-none focus:border-brand-500 transition"
@@ -197,7 +196,7 @@ export function GenerateStudyPlanModal({
                     type="button"
                     onClick={() => removeRow(idx)}
                     className="text-ink-500 hover:text-danger-400 transition p-1 rounded"
-                    aria-label={`Remover matéria ${idx + 1}`}
+                    aria-label={`Remover linha ${idx + 1}`}
                   >
                     <X size={16} />
                   </button>
