@@ -7,7 +7,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.schemas.session import SessionCreate, SessionResponse
+from app.schemas.session import SessionComplete, SessionCreate, SessionResponse
 from app.services import session_service
 from app.models.session import SessionStatus
 from sqlalchemy.sql import func
@@ -54,6 +54,7 @@ def get_session(
 @router.patch("/{session_id}/complete", response_model=SessionResponse)
 def complete_session(
     session_id: UUID,
+    payload: Optional[SessionComplete] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -62,8 +63,14 @@ def complete_session(
         raise HTTPException(status_code=400, detail="Session is already completed")
     db_session.status = SessionStatus.completed
     db_session.ended_at = func.now()
-    # Como fallback caso a UI não mande os tempos (ela de fato não manda)
-    db_session.actual_duration_seconds = db_session.planned_duration_seconds
+    if payload is not None:
+        db_session.actual_duration_seconds = payload.actual_duration_seconds
+        db_session.pause_duration_seconds = payload.pause_duration_seconds
+        if payload.notes is not None:
+            db_session.notes = payload.notes
+    else:
+        # Fallback retrocompatível para clientes que ainda não enviam tempos.
+        db_session.actual_duration_seconds = db_session.planned_duration_seconds
     db.commit()
     db.refresh(db_session)
     return db_session
