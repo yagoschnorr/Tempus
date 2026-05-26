@@ -5,6 +5,7 @@ from typing import List
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.integrations.openai_client import OpenAIClient, get_openai
 from app.models.user import User
 from app.schemas.study_plan import StudyPlanCreate, StudyPlanResponse, StudyPlanUpdate
 from app.services import study_plan_service
@@ -16,9 +17,12 @@ router = APIRouter()
 def generate_study_plan(
     plan_in: StudyPlanCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    openai: OpenAIClient = Depends(get_openai),
 ):
-    return study_plan_service.create_study_plan(db, user_id=current_user.id, plan_in=plan_in)
+    return study_plan_service.create_study_plan(
+        db, user_id=current_user.id, plan_in=plan_in, openai=openai
+    )
 
 @router.get("", response_model=List[StudyPlanResponse])
 def get_study_plans(
