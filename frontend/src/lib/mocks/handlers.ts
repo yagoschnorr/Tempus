@@ -18,6 +18,7 @@ import type {
   DeleteAccountInput,
   Document,
   DocumentStatus,
+  RealtimeDashboard,
   StudyPlan,
   StudyPlanStatus,
   UpdateStudyPlanInput,
@@ -103,6 +104,17 @@ let notebookRows: NotebookRow[] = [];
 const notesByNotebook = new Map<UUID, Note[]>();
 let documents: Document[] = [];
 let studyPlans: StudyPlan[] = [];
+
+const seedDashboard = (): RealtimeDashboard => ({
+  minutes_today: 45,
+  minutes_week: 320,
+  sessions_today: 1,
+  sessions_week: 6,
+  current_streak: 5,
+  avg_quiz_score_week: 82.5,
+});
+let dashboard: RealtimeDashboard = seedDashboard();
+
 let counter = 100;
 
 export const resetMockState = () => {
@@ -116,6 +128,7 @@ export const resetMockState = () => {
   notesByNotebook.clear();
   documents = [];
   studyPlans = [];
+  dashboard = seedDashboard();
   counter = 100;
 };
 
@@ -891,6 +904,14 @@ const studyPlansHandlers = [
 ];
 
 // =============================================================================
+// Dashboard
+// =============================================================================
+
+const dashboardHandlers = [
+  http.get("/api/dashboard/realtime", () => HttpResponse.json(dashboard)),
+];
+
+// =============================================================================
 // Aggregate
 // =============================================================================
 
@@ -903,4 +924,5 @@ export const handlers = [
   ...notebooksHandlers,
   ...documentsHandlers,
   ...studyPlansHandlers,
+  ...dashboardHandlers,
 ];
