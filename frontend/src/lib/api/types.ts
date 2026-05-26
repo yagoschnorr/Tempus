@@ -329,3 +329,16 @@ export interface CreateStudyPlanInput {
 export interface UpdateStudyPlanInput {
   status: StudyPlanStatus;
 }
+
+// =============================================================================
+// Dashboard
+// =============================================================================
+
+export interface RealtimeDashboard {
+  minutes_today: number;
+  minutes_week: number;
+  sessions_today: number;
+  sessions_week: number;
+  current_streak: number;
+  avg_quiz_score_week: number | null;
+}
