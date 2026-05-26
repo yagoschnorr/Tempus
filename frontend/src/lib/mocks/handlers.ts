@@ -13,10 +13,14 @@ import type {
   CreateNotebookInput,
   CreateQuizInput,
   CreateSessionInput,
+  CreateStudyPlanInput,
   CreateSubjectInput,
   DeleteAccountInput,
   Document,
   DocumentStatus,
+  StudyPlan,
+  StudyPlanStatus,
+  UpdateStudyPlanInput,
   Note,
   NoteSummary,
   Notebook,
@@ -98,6 +102,7 @@ interface NotebookRow {
 let notebookRows: NotebookRow[] = [];
 const notesByNotebook = new Map<UUID, Note[]>();
 let documents: Document[] = [];
+let studyPlans: StudyPlan[] = [];
 let counter = 100;
 
 export const resetMockState = () => {
@@ -110,6 +115,7 @@ export const resetMockState = () => {
   notebookRows = [];
   notesByNotebook.clear();
   documents = [];
+  studyPlans = [];
   counter = 100;
 };
 
@@ -811,6 +817,80 @@ const documentsHandlers = [
 ];
 
 // =============================================================================
+// Study Plans
+// =============================================================================
+
+function generatePlanContent(input: CreateStudyPlanInput): string {
+  const lines = [
+    `# Plano de Estudos: ${input.title}`,
+    `**Horas diárias disponíveis:** ${input.daily_hours_available}h`,
+    `**Data da Prova/Exame:** ${input.exam_date ?? "Não definida"}`,
+    "",
+    "## Divisão de Matérias Sugerida",
+    "*(Plano gerado de forma determinística - Fallback MVP)*",
+    "",
+  ];
+  for (const sub of input.subjects) {
+    const peso =
+      sub.priority === "high"
+        ? "Alta **(Prioridade Máxima)**"
+        : sub.priority === "medium"
+          ? "Média"
+          : "Baixa";
+    lines.push(`- Matéria ID \`${sub.subject_id}\`: Nível ${peso}`);
+  }
+  return lines.join("\n");
+}
+
+const studyPlansHandlers = [
+  http.get("/api/study-plans", () => HttpResponse.json(studyPlans)),
+
+  http.get("/api/study-plans/:id", ({ params }) => {
+    const plan = studyPlans.find((p) => p.id === params.id);
+    if (!plan) return error(404, "Plano não encontrado");
+    return HttpResponse.json(plan);
+  }),
+
+  http.post("/api/study-plans/generate", async ({ request }) => {
+    const body = (await request.json()) as CreateStudyPlanInput;
+    if (!body?.title?.trim()) return error(400, "title é obrigatório");
+    if (!body.daily_hours_available || body.daily_hours_available <= 0) {
+      return error(400, "daily_hours_available deve ser > 0");
+    }
+    if (!body.subjects || body.subjects.length === 0) {
+      return error(400, "pelo menos uma matéria é obrigatória");
+    }
+    const stamp = now();
+    const plan: StudyPlan = {
+      id: newId("sp"),
+      user_id: fakeUser.id,
+      title: body.title.trim(),
+      exam_date: body.exam_date ?? null,
+      daily_hours_available: body.daily_hours_available,
+      plan_content: generatePlanContent(body),
+      status: "active" as StudyPlanStatus,
+      generated_at: stamp,
+      created_at: stamp,
+      subjects: body.subjects.map((s) => ({
+        subject_id: s.subject_id,
+        priority: s.priority,
+      })),
+    };
+    studyPlans.unshift(plan);
+    return HttpResponse.json(plan, { status: 201 });
+  }),
+
+  http.patch("/api/study-plans/:id", async ({ params, request }) => {
+    const plan = studyPlans.find((p) => p.id === params.id);
+    if (!plan) return error(404, "Plano não encontrado");
+    const body = (await request.json()) as UpdateStudyPlanInput;
+    if (!body?.status) return error(400, "status é obrigatório");
+    plan.status = body.status;
+    return HttpResponse.json(plan);
+  }),
+];
+
+// =============================================================================
 // Aggregate
 // =============================================================================
 
@@ -822,4 +902,5 @@ export const handlers = [
   ...chatHandlers,
   ...notebooksHandlers,
   ...documentsHandlers,
+  ...studyPlansHandlers,
 ];
