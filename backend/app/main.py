@@ -21,7 +21,7 @@ app.add_middleware(
 def root():
     return {"message": "Bem-vindo à API do Tempus!"}
 
-from app.routers import auth, chat, dashboard, notebook, quizzes, subjects
+from app.routers import auth, chat, dashboard, notebook, quizzes, subjects, sessions
 
 # Registrar roteadores
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
@@ -30,3 +30,4 @@ app.include_router(quizzes.router, prefix="/api/quizzes", tags=["Quizzes"])
 app.include_router(notebook.router, prefix="/api/notebooks", tags=["Notebooks"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
