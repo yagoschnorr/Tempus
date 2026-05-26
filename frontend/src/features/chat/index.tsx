@@ -124,7 +124,7 @@ export default function ChatPage() {
       style={{ height: "calc(100dvh - 4rem)" }}
     >
       <header className="shrink-0 mb-4">
-        <p className="label-section mb-1">Tirar dúvida com IA · UC10</p>
+        <p className="label-section mb-1">Tirar dúvida com IA</p>
         <h1 className="text-2xl font-bold text-ink-100">
           Pergunte sobre seus documentos
         </h1>
