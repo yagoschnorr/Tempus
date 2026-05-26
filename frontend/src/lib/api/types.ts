@@ -293,3 +293,39 @@ export interface UploadDocumentInput {
   file: File;
   subject_id?: UUID;
 }
+
+// =============================================================================
+// Study Plans
+// =============================================================================
+
+export type StudyPlanStatus = "active" | "archived" | "completed";
+export type StudyPlanPriority = "low" | "medium" | "high";
+
+export interface StudyPlanSubject {
+  subject_id: UUID;
+  priority: StudyPlanPriority;
+}
+
+export interface StudyPlan {
+  id: UUID;
+  user_id: UUID;
+  title: string;
+  exam_date: string | null;
+  daily_hours_available: number;
+  plan_content: string;
+  status: StudyPlanStatus;
+  generated_at: string;
+  created_at: string;
+  subjects: StudyPlanSubject[];
+}
+
+export interface CreateStudyPlanInput {
+  title: string;
+  exam_date?: string;
+  daily_hours_available: number;
+  subjects: StudyPlanSubject[];
+}
+
+export interface UpdateStudyPlanInput {
+  status: StudyPlanStatus;
+}
