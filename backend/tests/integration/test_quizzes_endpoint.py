@@ -149,18 +149,55 @@ def test_generate_rejects_general_topic_without_description(client, auth_headers
     assert fake_openai.calls == []  # nem chega a chamar a IA
 
 
-def test_generate_documents_returns_501(client, auth_headers, fake_openai):
+def test_generate_documents_success(client, auth_headers, fake_openai, db, test_user):
+    from app.models.document import Document, DocumentChunk, DocumentStatus
+    # 1. Cria um documento pronto no banco
+    doc = Document(
+        id=uuid4(),
+        user_id=test_user.id,
+        filename="rag.pdf",
+        file_path="/tmp/rag.pdf",
+        file_size_bytes=100,
+        mime_type="application/pdf",
+        status=DocumentStatus.ready
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    
+    # 2. Adiciona um chunk para esse documento com embedding
+    chunk = DocumentChunk(
+        id=uuid4(),
+        document_id=doc.id,
+        chunk_index=0,
+        content="Este é um trecho de RAG sobre álgebra linear.",
+        embedding=[0.1] * 1536,
+        token_count=10
+    )
+    db.add(chunk)
+    db.commit()
+
+    fake_openai.chat_responses.append(_scripted_chat_response(2, correct="b"))
+
+    # 3. Dispara a geração
     response = client.post(
         "/api/quizzes/generate",
         json={
             "source_type": "documents",
-            "document_ids": [str(uuid4())],
-            "total_questions": 3,
+            "document_ids": [str(doc.id)],
+            "topic_description": "álgebra linear",
+            "total_questions": 2,
         },
         headers=auth_headers,
     )
-    assert response.status_code == 501
-    assert "Sprint 3" in response.json()["detail"]
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["total_questions"] == 2
+    assert len(body["questions"]) == 2
+    assert body["source_type"] == "documents"
+
 
 
 # ---------------------------------------------------------------------------

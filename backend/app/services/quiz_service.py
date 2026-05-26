@@ -35,7 +35,11 @@ from app.schemas.quiz import AnswerResult, QuizCreate
 from app.services.quiz_generator import (
     QuizGenerationError,
     generate_questions_from_topic,
+    generate_questions_from_documents,
 )
+from sqlalchemy import text
+from app.models.document import Document, DocumentChunk, DocumentStatus
+from app.services.embedding_service import EmbeddingService
 
 
 TITLE_PREFIX = "Quiz: "
@@ -79,6 +83,73 @@ def _get_quiz_owned_by_user(db: Session, user_id: UUID, quiz_id: UUID) -> Quiz:
     return quiz
 
 
+def _retrieve_document_chunks(
+    db: Session,
+    user_id: UUID,
+    document_ids: list[UUID],
+    topic_description: Optional[str],
+    openai: OpenAIClient,
+    limit: int = 10,
+) -> list[str]:
+    # 1. Valida se os documentos pertencem ao usuário e estão 'ready'
+    docs = db.query(Document).filter(
+        Document.id.in_(document_ids),
+        Document.user_id == user_id,
+        Document.status == DocumentStatus.ready
+    ).all()
+    
+    if len(docs) != len(document_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Alguns dos documentos selecionados não estão prontos para uso ou não pertencem ao usuário."
+        )
+    
+    valid_doc_ids = [d.id for d in docs]
+
+    # 2. Se houver descrição do tópico, faz busca semântica nos chunks dos documentos selecionados
+    if topic_description and topic_description.strip():
+        embed_service = EmbeddingService(openai)
+        query_vector = embed_service.get_embeddings([topic_description])[0]
+        
+        # Faz busca por pgvector ou fallback Python
+        dialect = db.bind.dialect.name if db.bind is not None else ""
+        if dialect == "postgresql":
+            query = text("""
+                SELECT content
+                FROM document_chunks
+                WHERE document_id IN :doc_ids
+                ORDER BY embedding <=> CAST(:q AS vector)
+                LIMIT :limit
+            """)
+            rows = db.execute(
+                query,
+                {
+                    "doc_ids": tuple(valid_doc_ids),
+                    "q": "[" + ",".join(f"{v:.6f}" for v in query_vector) + "]",
+                    "limit": limit
+                }
+            ).all()
+            return [row.content for row in rows]
+        else:
+            chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(valid_doc_ids)).all()
+            scored = []
+            for chunk in chunks:
+                from app.services.rag_service import _cosine
+                score = _cosine(query_vector, list(chunk.embedding) if chunk.embedding is not None else [])
+                scored.append((score, chunk.content))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return [content for _, content in scored[:limit]]
+    else:
+        # Se não houver tópico, retorna os primeiros chunks dos documentos selecionados
+        chunks = db.query(DocumentChunk).filter(
+            DocumentChunk.document_id.in_(valid_doc_ids)
+        ).order_by(
+            DocumentChunk.document_id,
+            DocumentChunk.chunk_index
+        ).limit(limit).all()
+        return [c.content for c in chunks]
+
+
 # ---------------------------------------------------------------------------
 # Operações
 # ---------------------------------------------------------------------------
@@ -88,27 +159,59 @@ def create_quiz_from_topic(
     payload: QuizCreate,
     openai: OpenAIClient,
 ) -> Quiz:
-    """Gera perguntas via IA e persiste o quiz + suas perguntas atomicamente."""
-    if payload.source_type != QuizSourceType.general_topic:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="source_type='documents' será disponibilizado na Sprint 3 (RAG)",
-        )
-
+    """Gera perguntas via IA (por tópico livre ou RAG de documentos) e persiste o quiz + perguntas."""
     subject_name = _resolve_subject_name(db, user.id, payload.subject_id)
 
-    try:
-        generated = generate_questions_from_topic(
-            openai,
-            topic=payload.topic_description or "",
-            total_questions=payload.total_questions,
-            subject_name=subject_name,
+    if payload.source_type == QuizSourceType.documents:
+        if not payload.document_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="document_ids é obrigatório quando source_type='documents'."
+            )
+        
+        # Recupera chunks e monta o contexto
+        chunks = _retrieve_document_chunks(
+            db=db,
+            user_id=user.id,
+            document_ids=payload.document_ids,
+            topic_description=payload.topic_description,
+            openai=openai,
+            limit=10
         )
-    except QuizGenerationError as err:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Falha ao gerar quiz com a IA: {err}",
-        )
+        if not chunks:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhum conteúdo textual pôde ser recuperado dos documentos fornecidos."
+            )
+        context = "\n\n".join(f"[Trecho {idx + 1}] {content}" for idx, content in enumerate(chunks))
+        
+        try:
+            generated = generate_questions_from_documents(
+                openai,
+                context=context,
+                total_questions=payload.total_questions,
+                topic_description=payload.topic_description,
+                subject_name=subject_name,
+            )
+        except QuizGenerationError as err:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Falha ao gerar quiz com a IA: {err}",
+            )
+            
+    else:  # QuizSourceType.general_topic
+        try:
+            generated = generate_questions_from_topic(
+                openai,
+                topic=payload.topic_description or "",
+                total_questions=payload.total_questions,
+                subject_name=subject_name,
+            )
+        except QuizGenerationError as err:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Falha ao gerar quiz com a IA: {err}",
+            )
 
     quiz = Quiz(
         user_id=user.id,
@@ -119,6 +222,15 @@ def create_quiz_from_topic(
         total_questions=payload.total_questions,
         status=QuizStatus.pending,
     )
+    
+    # Se for baseado em documentos, associa os documentos ao quiz
+    if payload.source_type == QuizSourceType.documents and payload.document_ids:
+        docs = db.query(Document).filter(
+            Document.id.in_(payload.document_ids),
+            Document.user_id == user.id
+        ).all()
+        quiz.documents = docs
+
     db.add(quiz)
     db.flush()  # garante quiz.id antes de criar perguntas
 
