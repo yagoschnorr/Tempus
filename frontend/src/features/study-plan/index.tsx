@@ -1,27 +1,40 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Eye,
   FileText,
   Plus,
+  RotateCw,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import { Button } from "@/components/Button";
+import { Toast } from "@/components/Toast";
 import { useSubjects } from "@/features/subjects/hooks/useSubjects";
 import type {
+  StudyPlan,
   StudyPlanPriority,
   StudyPlanStatus,
 } from "@/lib/api/types";
 import { useStudyPlans } from "./hooks/useStudyPlans";
 import { GenerateStudyPlanModal } from "./components/GenerateStudyPlanModal";
+import { ConfirmStatusChangeDialog } from "./components/ConfirmStatusChangeDialog";
+import { ViewPlanContentDialog } from "./components/ViewPlanContentDialog";
+import { markdownComponents } from "./markdown";
 
 const statusLabels: Record<StudyPlanStatus, string> = {
   active: "Ativo",
   archived: "Arquivado",
   completed: "Concluído",
+};
+
+const statusClass: Record<StudyPlanStatus, string> = {
+  active: "bg-success-500/15 text-success-400 border border-success-500/20",
+  archived: "bg-ink-700/30 text-ink-400 border border-ink-600/40",
+  completed: "bg-info-500/15 text-info-400 border border-info-500/20",
 };
 
 const priorityLabels: Record<StudyPlanPriority, string> = {
@@ -58,50 +71,42 @@ function formatExamDate(
   return { formatted, relative };
 }
 
-const markdownComponents = {
-  h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className="text-xl font-bold text-ink-100 mb-3 mt-2">{children}</h1>
-  ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="text-lg font-semibold text-ink-100 mt-4 mb-2">{children}</h2>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="text-base font-semibold text-ink-100 mt-3 mb-1">
-      {children}
-    </h3>
-  ),
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-ink-300 mb-2 leading-relaxed">{children}</p>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="list-disc list-inside text-ink-300 space-y-1 mb-2 ml-2">
-      {children}
-    </ul>
-  ),
-  ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="list-decimal list-inside text-ink-300 space-y-1 mb-2 ml-2">
-      {children}
-    </ol>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="text-ink-100 font-semibold">{children}</strong>
-  ),
-  em: ({ children }: { children?: React.ReactNode }) => (
-    <em className="italic text-ink-400">{children}</em>
-  ),
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="bg-ink-900 px-1.5 py-0.5 rounded text-xs font-mono text-brand-300">
-      {children}
-    </code>
-  ),
-};
-
 export default function StudyPlanPage() {
-  const { activePlan, loading, error, refresh, updateStatus, generate } =
-    useStudyPlans();
+  const {
+    plans,
+    activePlan,
+    loading,
+    error,
+    refresh,
+    updateStatus,
+    generate,
+  } = useStudyPlans();
   const { subjects } = useSubjects();
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{
+    plan: StudyPlan;
+    target: StudyPlanStatus;
+  } | null>(null);
+  const [viewingPlan, setViewingPlan] = useState<StudyPlan | null>(null);
+  const [toast, setToast] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const previousPlans = useMemo(
+    () =>
+      plans
+        .filter((p) => p.status !== "active")
+        .sort((a, b) => b.generated_at.localeCompare(a.generated_at)),
+    [plans],
+  );
 
   const subjectsById = useMemo(
     () => new Map(subjects.map((s) => [s.id, s])),
@@ -110,14 +115,28 @@ export default function StudyPlanPage() {
 
   const examDateInfo = activePlan ? formatExamDate(activePlan.exam_date) : null;
 
-  async function handleArchive() {
-    if (!activePlan) return;
-    await updateStatus(activePlan.id, "archived");
+  function askChange(plan: StudyPlan, target: StudyPlanStatus) {
+    setPendingChange({ plan, target });
   }
 
-  async function handleComplete() {
-    if (!activePlan) return;
-    await updateStatus(activePlan.id, "completed");
+  async function handleConfirmStatusChange() {
+    if (!pendingChange) return;
+    const { plan, target } = pendingChange;
+    // Reativar com outro plano ativo: arquiva o atual primeiro pra não deixar
+    // dois planos active simultâneos (o backend não restringe, então a UX faz).
+    if (target === "active" && activePlan && activePlan.id !== plan.id) {
+      await updateStatus(activePlan.id, "archived");
+    }
+    await updateStatus(plan.id, target);
+    setToast({
+      kind: "success",
+      message:
+        target === "active"
+          ? "Plano reativado"
+          : target === "archived"
+            ? "Plano arquivado"
+            : "Plano marcado como concluído",
+    });
   }
 
   return (
@@ -127,7 +146,7 @@ export default function StudyPlanPage() {
           <div className="flex items-center gap-3 mb-1">
             <p className="label-section">Plano de estudos</p>
             {activePlan ? (
-              <span className="pill bg-success-500/15 text-success-400 border border-success-500/20">
+              <span className={`pill ${statusClass.active}`}>
                 {statusLabels.active}
               </span>
             ) : (
@@ -146,10 +165,13 @@ export default function StudyPlanPage() {
         </div>
         {activePlan ? (
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={handleArchive}>
+            <Button
+              variant="secondary"
+              onClick={() => askChange(activePlan, "archived")}
+            >
               <Archive size={16} /> Arquivar
             </Button>
-            <Button onClick={handleComplete}>
+            <Button onClick={() => askChange(activePlan, "completed")}>
               <CheckCircle2 size={16} /> Marcar como concluído
             </Button>
           </div>
@@ -295,12 +317,72 @@ export default function StudyPlanPage() {
         </>
       )}
 
+      {previousPlans.length > 0 && (
+        <section className="space-y-3">
+          <p className="label-section">Planos anteriores</p>
+          {previousPlans.map((p) => (
+            <article
+              key={p.id}
+              className="card p-4 flex items-center justify-between gap-3 flex-wrap"
+            >
+              <div className="min-w-0">
+                <p className="text-ink-100 font-medium truncate">{p.title}</p>
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Gerado em{" "}
+                  {new Date(p.generated_at).toLocaleDateString("pt-BR")}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`pill ${statusClass[p.status]}`}>
+                  {statusLabels[p.status]}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setViewingPlan(p)}
+                  className="flex items-center gap-1 text-xs text-ink-300 hover:text-ink-100 transition px-2 py-1 rounded"
+                  aria-label={`Ver detalhes de ${p.title}`}
+                >
+                  <Eye size={14} /> Ver
+                </button>
+                <button
+                  type="button"
+                  onClick={() => askChange(p, "active")}
+                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 transition px-2 py-1 rounded"
+                  aria-label={`Reativar ${p.title}`}
+                >
+                  <RotateCw size={14} /> Reativar
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
       <GenerateStudyPlanModal
         open={isGenerateOpen}
         onClose={() => setIsGenerateOpen(false)}
         subjects={subjects}
         onSubmit={generate}
       />
+
+      <ConfirmStatusChangeDialog
+        plan={pendingChange?.plan ?? null}
+        targetStatus={pendingChange?.target ?? null}
+        hasOtherActive={
+          pendingChange?.target === "active" &&
+          activePlan !== null &&
+          activePlan.id !== pendingChange.plan.id
+        }
+        onClose={() => setPendingChange(null)}
+        onConfirm={handleConfirmStatusChange}
+      />
+
+      <ViewPlanContentDialog
+        plan={viewingPlan}
+        onClose={() => setViewingPlan(null)}
+      />
+
+      {toast && <Toast kind={toast.kind} message={toast.message} />}
     </div>
   );
 }
