@@ -15,6 +15,8 @@ import type {
   CreateSessionInput,
   CreateSubjectInput,
   DeleteAccountInput,
+  Document,
+  DocumentStatus,
   Note,
   NoteSummary,
   Notebook,
@@ -95,6 +97,7 @@ interface NotebookRow {
 }
 let notebookRows: NotebookRow[] = [];
 const notesByNotebook = new Map<UUID, Note[]>();
+let documents: Document[] = [];
 let counter = 100;
 
 export const resetMockState = () => {
@@ -106,6 +109,7 @@ export const resetMockState = () => {
   chatMessages.clear();
   notebookRows = [];
   notesByNotebook.clear();
+  documents = [];
   counter = 100;
 };
 
@@ -724,6 +728,71 @@ const notebooksHandlers = [
 ];
 
 // =============================================================================
+// Documents
+// =============================================================================
+
+// Cada GET subsequente faz docs em "processing" virarem "ready" — permite que
+// testes de polling vejam a transição sem depender de timers do backend.
+function tickProcessing(d: Document) {
+  if (d.status === "processing") {
+    d.status = "ready" as DocumentStatus;
+    d.total_pages = 5;
+    d.total_chunks = 3;
+    d.processed_at = now();
+  }
+}
+
+const documentsHandlers = [
+  http.get("/api/documents", ({ request }) => {
+    const url = new URL(request.url);
+    const subjectId = url.searchParams.get("subject_id");
+    documents.forEach(tickProcessing);
+    const filtered = subjectId
+      ? documents.filter((d) => d.subject_id === subjectId)
+      : documents;
+    return HttpResponse.json(filtered);
+  }),
+
+  http.get("/api/documents/:id", ({ params }) => {
+    const doc = documents.find((d) => d.id === params.id);
+    if (!doc) return error(404, "documento não encontrado");
+    tickProcessing(doc);
+    return HttpResponse.json(doc);
+  }),
+
+  http.post("/api/documents", async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File)) return error(400, "file é obrigatório");
+    const subjectId = formData.get("subject_id");
+    const doc: Document = {
+      id: newId("doc"),
+      user_id: fakeUser.id,
+      subject_id:
+        typeof subjectId === "string" && subjectId ? subjectId : null,
+      filename: file.name,
+      file_size_bytes: file.size,
+      mime_type: file.type || "application/pdf",
+      total_pages: null,
+      total_chunks: 0,
+      status: "processing",
+      error_message: null,
+      uploaded_at: now(),
+      processed_at: null,
+    };
+    documents.push(doc);
+    return HttpResponse.json(doc, { status: 201 });
+  }),
+
+  http.delete("/api/documents/:id", ({ params }) => {
+    const idx = documents.findIndex((d) => d.id === params.id);
+    if (idx === -1) return error(404, "documento não encontrado");
+    documents.splice(idx, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+];
+
+// =============================================================================
 // Aggregate
 // =============================================================================
 
@@ -734,4 +803,5 @@ export const handlers = [
   ...quizzesHandlers,
   ...chatHandlers,
   ...notebooksHandlers,
+  ...documentsHandlers,
 ];

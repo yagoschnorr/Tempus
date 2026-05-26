@@ -74,7 +74,6 @@ export function UploadDocumentModal({ open, onClose, subjects, onSubmit }: Props
             accept="application/pdf,.pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm text-ink-200 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-500 file:text-white hover:file:bg-brand-400 file:cursor-pointer"
-            required
           />
         </label>
 
