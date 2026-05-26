@@ -1,5 +1,10 @@
 import { api } from "@/lib/api/client";
-import type { CreateSessionInput, StudySession, UUID } from "@/lib/api/types";
+import type {
+  CompleteSessionInput,
+  CreateSessionInput,
+  StudySession,
+  UUID,
+} from "@/lib/api/types";
 
 export const sessionsApi = {
   list() {
@@ -18,8 +23,11 @@ export const sessionsApi = {
     return api<StudySession>(`/sessions/${id}/resume`, { method: "PATCH" });
   },
 
-  complete(id: UUID) {
-    return api<StudySession>(`/sessions/${id}/complete`, { method: "PATCH" });
+  complete(id: UUID, input?: CompleteSessionInput) {
+    return api<StudySession>(`/sessions/${id}/complete`, {
+      method: "PATCH",
+      json: input,
+    });
   },
 
   abandon(id: UUID) {

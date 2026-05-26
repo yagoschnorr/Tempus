@@ -98,6 +98,13 @@ export interface StudySession {
 export interface CreateSessionInput {
   subject_id?: UUID;
   planned_duration_seconds: number;
+  notes?: string;
+}
+
+export interface CompleteSessionInput {
+  actual_duration_seconds: number;
+  pause_duration_seconds: number;
+  notes?: string;
 }
 
 // =============================================================================

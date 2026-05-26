@@ -3,7 +3,15 @@ import { CheckCircle2, Pause, Play, Play as PlayIcon, RotateCcw, X } from "lucid
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { useSubjects } from "@/features/subjects/hooks/useSubjects";
-import { useTimer } from "./hooks/useTimer";
+import { useTimer, type TimerStatus } from "./hooks/useTimer";
+
+const statusLabels: Record<TimerStatus, string> = {
+  idle: "Inativa",
+  running: "Modo foco ativo",
+  paused: "Pausada",
+  completed: "Concluída",
+  abandoned: "Abandonada",
+};
 
 const RING_LEN = 289; // circunferência do círculo r=46
 
@@ -39,6 +47,7 @@ export default function TimerPage() {
     await timer.start({
       subject_id: subjectId || undefined,
       planned_duration_seconds: focusMin * 60,
+      notes: goal.trim() || undefined,
     });
   }
 
@@ -56,7 +65,7 @@ export default function TimerPage() {
           {currentSubject && (
             <div className="flex items-center gap-3 mt-2">
               <span className="pill bg-success-500/15 text-success-400 border border-success-500/20">
-                {running ? "Modo foco ativo" : timer.status}
+                {statusLabels[timer.status]}
               </span>
               <span className="text-sm text-ink-400">
                 Pomodoro · {focusMin}/{breakMin} ·{" "}

@@ -248,7 +248,7 @@ const sessionsHandlers = [
       actual_duration_seconds: 0,
       pause_duration_seconds: 0,
       status: "in_progress",
-      notes: null,
+      notes: body.notes ?? null,
       started_at: now(),
       ended_at: null,
     };
@@ -276,14 +276,32 @@ const sessionsHandlers = [
     return HttpResponse.json(session);
   }),
 
-  http.patch("/api/sessions/:id/complete", ({ params }) => {
+  http.patch("/api/sessions/:id/complete", async ({ params, request }) => {
     const session = sessions.find((s) => s.id === params.id);
     if (!session) return error(404, "sessão não encontrada");
     if (session.status === "completed" || session.status === "abandoned") {
       return error(400, `sessão já está ${session.status}`);
     }
+    type CompletePayload = {
+      actual_duration_seconds?: number;
+      pause_duration_seconds?: number;
+      notes?: string;
+    };
+    let payload: CompletePayload | null = null;
+    try {
+      payload = (await request.json()) as CompletePayload;
+    } catch {
+      // body é opcional
+    }
     session.status = "completed";
     session.ended_at = now();
+    if (payload && payload.actual_duration_seconds !== undefined) {
+      session.actual_duration_seconds = payload.actual_duration_seconds;
+      session.pause_duration_seconds = payload.pause_duration_seconds ?? 0;
+      if (payload.notes !== undefined) session.notes = payload.notes;
+    } else {
+      session.actual_duration_seconds = session.planned_duration_seconds;
+    }
     return HttpResponse.json(session);
   }),
 

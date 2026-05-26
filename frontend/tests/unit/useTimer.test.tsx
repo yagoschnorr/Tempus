@@ -108,4 +108,64 @@ describe("useTimer", () => {
     expect(result.current.session).toBeNull();
     expect(result.current.secondsRemaining).toBe(0);
   });
+
+  it("start envia notes e backend persiste", async () => {
+    const { result } = renderHook(() => useTimer());
+    await act(async () => {
+      await result.current.start({
+        planned_duration_seconds: 60,
+        notes: "Resolver capítulo 3",
+      });
+    });
+    expect(result.current.session?.notes).toBe("Resolver capítulo 3");
+  });
+
+  it("complete envia actual e pause computados", async () => {
+    const { result } = renderHook(() => useTimer());
+    await act(async () => {
+      await result.current.start({ planned_duration_seconds: 100 });
+    });
+
+    // 10s rodando, depois pause
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await act(async () => {
+      await result.current.pause();
+    });
+    expect(result.current.secondsRemaining).toBe(90);
+
+    // 4s pausado
+    await act(async () => {
+      vi.advanceTimersByTime(4_000);
+    });
+    await act(async () => {
+      await result.current.complete();
+    });
+
+    expect(result.current.session?.status).toBe("completed");
+    expect(result.current.session?.actual_duration_seconds).toBe(10);
+    expect(result.current.session?.pause_duration_seconds).toBe(4);
+  });
+});
+
+describe("useTimer (hidratação)", () => {
+  it("hidrata sessão in_progress existente no mount", async () => {
+    // Cria sessão diretamente via API antes de montar o hook.
+    const { sessionsApi } = await import("@/features/timer/api");
+    await sessionsApi.create({ planned_duration_seconds: 600 });
+
+    const { result } = renderHook(() => useTimer());
+    await waitFor(() => expect(result.current.hydrating).toBe(false));
+    expect(result.current.status).toBe("running");
+    expect(result.current.session).not.toBeNull();
+    expect(result.current.session?.status).toBe("in_progress");
+  });
+
+  it("mantém idle quando não há sessão ativa", async () => {
+    const { result } = renderHook(() => useTimer());
+    await waitFor(() => expect(result.current.hydrating).toBe(false));
+    expect(result.current.status).toBe("idle");
+    expect(result.current.session).toBeNull();
+  });
 });
