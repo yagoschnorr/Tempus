@@ -260,3 +260,29 @@ export interface UpdateNoteInput {
 export interface NoteSummary {
   summary: string;
 }
+
+// =============================================================================
+// Documents
+// =============================================================================
+
+export type DocumentStatus = "processing" | "ready" | "failed";
+
+export interface Document {
+  id: UUID;
+  user_id: UUID;
+  subject_id: UUID | null;
+  filename: string;
+  file_size_bytes: number;
+  mime_type: string;
+  total_pages: number | null;
+  total_chunks: number;
+  status: DocumentStatus;
+  error_message: string | null;
+  uploaded_at: string;
+  processed_at: string | null;
+}
+
+export interface UploadDocumentInput {
+  file: File;
+  subject_id?: UUID;
+}
