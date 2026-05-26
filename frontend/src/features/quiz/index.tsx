@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -13,6 +13,7 @@ import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { Toast } from "@/components/Toast";
 import { useSubjects } from "@/features/subjects/hooks/useSubjects";
+import { useDocuments } from "@/features/documents/hooks/useDocuments";
 import type { Quiz, QuizOption, QuizSourceType, QuizStatus } from "@/lib/api/types";
 import { useQuiz } from "./hooks/useQuiz";
 import { DeleteQuizDialog } from "./components/DeleteQuizDialog";
@@ -39,6 +40,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 export default function QuizPage() {
   const { subjects } = useSubjects();
+  const { documents } = useDocuments();
   const quiz = useQuiz();
 
   // Setup
@@ -46,6 +48,21 @@ export default function QuizPage() {
   const [subjectId, setSubjectId] = useState<string>("");
   const [topic, setTopic] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(5);
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  const readyDocs = useMemo(
+    () => documents.filter((d) => d.status === "ready"),
+    [documents],
+  );
+
+  function toggleDoc(id: string) {
+    setSelectedDocs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // History interactions
   const [toDelete, setToDelete] = useState<Quiz | null>(null);
@@ -78,14 +95,25 @@ export default function QuizPage() {
 
   async function handleGenerate(e: FormEvent) {
     e.preventDefault();
-    if (!topic.trim()) return;
+    if (source === "general_topic" && !topic.trim()) return;
+    if (source === "documents" && selectedDocs.size === 0) return;
     try {
-      await quiz.generate({
-        source_type: "general_topic",
-        topic_description: topic.trim(),
-        total_questions: totalQuestions,
-        subject_id: subjectId || undefined,
-      });
+      if (source === "documents") {
+        await quiz.generate({
+          source_type: "documents",
+          document_ids: [...selectedDocs],
+          topic_description: topic.trim() || undefined,
+          total_questions: totalQuestions,
+          subject_id: subjectId || undefined,
+        });
+      } else {
+        await quiz.generate({
+          source_type: "general_topic",
+          topic_description: topic.trim(),
+          total_questions: totalQuestions,
+          subject_id: subjectId || undefined,
+        });
+      }
     } catch {
       /* erro já tratado no hook */
     }
@@ -100,8 +128,8 @@ export default function QuizPage() {
           <p className="label-section mb-1">Quizzes</p>
           <h1 className="text-3xl font-bold text-ink-100">Criar quiz</h1>
           <p className="text-ink-400 mt-1 max-w-2xl">
-            A IA gera perguntas a partir de um tema livre que você descreve. Em sprints
-            futuras será possível gerar a partir dos seus PDFs também.
+            A IA gera perguntas a partir de um tema livre que você descreve ou
+            do conteúdo dos seus documentos.
           </p>
         </header>
 
@@ -141,19 +169,25 @@ export default function QuizPage() {
 
             <button
               type="button"
-              disabled
-              className="text-left p-4 rounded-xl border border-ink-700 bg-ink-900/50 opacity-50 cursor-not-allowed"
+              onClick={() => setSource("documents")}
+              className={`text-left p-4 rounded-xl border transition ${
+                source === "documents"
+                  ? "border-brand-500/50 bg-brand-500/10"
+                  : "border-ink-700 bg-ink-900 hover:border-ink-600"
+              }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-ink-300 flex items-center gap-2">
+                <span className="font-medium text-ink-100 flex items-center gap-2">
                   <FileText size={14} /> Documentos
                 </span>
-                <span className="pill bg-ink-800 text-ink-400 border border-ink-700">
-                  sprint 3
-                </span>
+                {source === "documents" && (
+                  <span className="pill bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                    selecionado
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-ink-500">
-                Disponível quando o pipeline de RAG estiver pronto.
+              <p className="text-sm text-ink-400">
+                A IA gera perguntas baseadas no conteúdo dos PDFs.
               </p>
             </button>
           </div>
@@ -195,23 +229,104 @@ export default function QuizPage() {
             </label>
           </div>
 
+          {source === "documents" && (
+            <div>
+              <p className="block mb-1.5 text-ink-300 font-medium text-xs uppercase tracking-wider">
+                Documentos (selecione 1 ou mais)
+              </p>
+              {readyDocs.length === 0 ? (
+                <p className="text-sm text-ink-400 bg-ink-900 border border-ink-700 rounded-lg px-3 py-3">
+                  Nenhum documento pronto. Faça upload em "Documentos" e
+                  aguarde o processamento terminar.
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {readyDocs.map((d) => {
+                    const subj = subjects.find((s) => s.id === d.subject_id);
+                    const isSelected = selectedDocs.has(d.id);
+                    return (
+                      <button
+                        type="button"
+                        key={d.id}
+                        onClick={() => toggleDoc(d.id)}
+                        disabled={generating}
+                        className={`w-full text-left p-3 rounded-lg border flex items-center gap-3 transition disabled:opacity-60 ${
+                          isSelected
+                            ? "border-brand-500/50 bg-brand-500/10"
+                            : "border-ink-700 bg-ink-900 hover:border-ink-600"
+                        }`}
+                      >
+                        <span
+                          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                            isSelected
+                              ? "bg-brand-500 border-brand-500"
+                              : "border-ink-600"
+                          }`}
+                        >
+                          {isSelected && (
+                            <Check size={10} className="text-white" />
+                          )}
+                        </span>
+                        <FileText
+                          size={14}
+                          className="text-ink-400 shrink-0"
+                        />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm text-ink-100 truncate">
+                            {d.filename}
+                          </span>
+                          {subj && (
+                            <span className="block text-xs text-ink-400">
+                              {subj.name}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {readyDocs.length > 0 && (
+                <p className="text-xs text-ink-500 mt-2">
+                  {selectedDocs.size} documento
+                  {selectedDocs.size === 1 ? "" : "s"} selecionado
+                  {selectedDocs.size === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+          )}
+
           <label className="block text-sm">
             <span className="block mb-1.5 text-ink-300 font-medium text-xs uppercase tracking-wider">
-              Sobre o que é o quiz?
+              {source === "documents"
+                ? "Tópico de foco (opcional)"
+                : "Sobre o que é o quiz?"}
             </span>
             <textarea
               rows={3}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               disabled={generating}
-              required
-              placeholder="Ex.: Derivadas e regras de derivação (cadeia, produto, quociente)"
+              required={source === "general_topic"}
+              placeholder={
+                source === "documents"
+                  ? "Ex.: foque em integrais por substituição (deixe em branco para usar tudo)"
+                  : "Ex.: Derivadas e regras de derivação (cadeia, produto, quociente)"
+              }
               className="w-full rounded-lg bg-ink-900 border border-ink-700 px-3 py-2.5 text-ink-100 placeholder:text-ink-500 focus:border-brand-500 focus:outline-none resize-none disabled:opacity-60"
             />
           </label>
 
           <div className="flex justify-end">
-            <Button type="submit" size="lg" disabled={generating || !topic.trim()}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={
+                generating ||
+                (source === "general_topic" && !topic.trim()) ||
+                (source === "documents" && selectedDocs.size === 0)
+              }
+            >
               {generating ? (
                 <>
                   <Spinner size={14} /> Gerando perguntas...
