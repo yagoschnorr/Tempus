@@ -23,3 +23,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+alembic/
+uploads/
+alembic.ini

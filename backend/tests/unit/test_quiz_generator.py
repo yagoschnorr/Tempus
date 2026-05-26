@@ -15,6 +15,7 @@ from app.services.quiz_generator import (
     RESPONSE_FORMAT,
     QuizGenerationError,
     generate_questions_from_topic,
+    generate_questions_from_documents,
 )
 
 
@@ -187,3 +188,37 @@ def test_generate_preserves_correct_alternative_text_after_shuffle(fake_openai):
     assert len(correct_letters) > 1, (
         f"shuffle não diversificou — todas em {correct_letters}"
     )
+
+
+def test_generate_from_documents_success(fake_openai):
+    fake_openai.chat_responses.append(
+        _chat_response({"questions": [_valid_question(i) for i in range(2)]})
+    )
+
+    result = generate_questions_from_documents(
+        fake_openai,
+        context="Este é um trecho de teste.",
+        total_questions=2,
+        topic_description="Tema",
+        subject_name="Matéria"
+    )
+
+    assert len(result) == 2
+    assert [q.question_text for q in result] == ["Pergunta 0", "Pergunta 1"]
+
+    kind, args = fake_openai.calls[0]
+    assert kind == "chat"
+    user_content = args["messages"][1]["content"]
+    assert "Este é um trecho de teste." in user_content
+    assert "Tema" in user_content
+    assert "Matéria" in user_content
+
+
+def test_generate_from_documents_empty_context(fake_openai):
+    with pytest.raises(QuizGenerationError, match="context não pode ser vazio"):
+        generate_questions_from_documents(
+            fake_openai,
+            context="   ",
+            total_questions=2
+        )
+

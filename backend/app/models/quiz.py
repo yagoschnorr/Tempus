@@ -2,6 +2,7 @@ import uuid
 import enum
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Text, Table, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -42,6 +43,8 @@ class Quiz(Base):
     status = Column(SQLEnum(QuizStatus, name="quiz_status"), nullable=False, default=QuizStatus.pending, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    documents = relationship("Document", secondary=quiz_sources)
 
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"

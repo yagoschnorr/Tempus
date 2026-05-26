@@ -189,3 +189,73 @@ def generate_questions_from_topic(
     raise QuizGenerationError(
         f"Falha ao gerar quiz após {max_retries + 1} tentativa(s): {last_error}"
     )
+
+
+def generate_questions_from_documents(
+    client: OpenAIClient,
+    *,
+    context: str,
+    total_questions: int,
+    topic_description: Optional[str] = None,
+    subject_name: Optional[str] = None,
+    max_retries: int = 1,
+    model: str = DEFAULT_MODEL,
+) -> list[GeneratedQuestion]:
+    """Gera `total_questions` perguntas baseadas estritamente no `context` dos documentos fornecidos."""
+    if not context.strip():
+        raise QuizGenerationError("context não pode ser vazio")
+
+    user_prompt_lines = [
+        f"Crie um quiz com EXATAMENTE {total_questions} perguntas baseado no contexto dos documentos fornecidos abaixo.",
+    ]
+    if topic_description and topic_description.strip():
+        user_prompt_lines.append(f"Foco do Tópico: {topic_description.strip()}")
+    if subject_name:
+        user_prompt_lines.append(f"Matéria de referência: {subject_name}")
+    
+    user_prompt_lines.extend([
+        "",
+        "Contexto dos Documentos:",
+        context,
+    ])
+
+    user_prompt = "\n".join(user_prompt_lines)
+
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT + "\nVocê deve basear suas perguntas estritamente no contexto dos documentos fornecidos. Não utilize informações externas que contradigam ou não estejam presentes no contexto."
+        },
+        {
+            "role": "user",
+            "content": user_prompt
+        },
+    ]
+
+    last_error: Optional[Exception] = None
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.chat(
+                messages=messages,
+                response_format=RESPONSE_FORMAT,
+                model=model,
+                temperature=DEFAULT_TEMPERATURE,
+            )
+            content = _extract_content(response)
+            data = json.loads(content)
+            parsed = GeneratedQuiz.model_validate(data)
+            if len(parsed.questions) != total_questions:
+                raise QuizGenerationError(
+                    f"OpenAI retornou {len(parsed.questions)} perguntas; "
+                    f"esperado {total_questions}"
+                )
+            return [_shuffle_options(q) for q in parsed.questions]
+        except (json.JSONDecodeError, ValidationError, QuizGenerationError) as err:
+            last_error = err
+            if attempt >= max_retries:
+                break
+
+    raise QuizGenerationError(
+        f"Falha ao gerar quiz a partir de documentos após {max_retries + 1} tentativa(s): {last_error}"
+    )
+
