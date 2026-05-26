@@ -16,3 +16,5 @@ httpx
 resend
 pytest
 pytest-cov
+tenacity
+python-multipart
