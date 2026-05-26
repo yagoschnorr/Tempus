@@ -1,11 +1,13 @@
-import { FileText, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertCircle, FileText, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/Button";
+import { Toast } from "@/components/Toast";
 import { useSubjects } from "@/features/subjects/hooks/useSubjects";
 import type { Document, DocumentStatus, UUID } from "@/lib/api/types";
 import { useDocuments } from "./hooks/useDocuments";
 import { formatBytes } from "./format";
 import { UploadDocumentModal } from "./components/UploadDocumentModal";
+import { DeleteDocumentDialog } from "./components/DeleteDocumentDialog";
 
 type SortOrder = "recent" | "size" | "alpha";
 
@@ -33,18 +35,65 @@ function sortDocuments(docs: Document[], order: SortOrder): Document[] {
   }
 }
 
+function DocumentSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="card p-4 flex items-center gap-4 animate-pulse"
+        >
+          <div className="w-10 h-10 rounded-lg bg-ink-800" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-ink-800 rounded w-2/3" />
+            <div className="h-2 bg-ink-800 rounded w-1/3" />
+          </div>
+          <div className="w-16 h-5 bg-ink-800 rounded" />
+        </div>
+      ))}
+    </>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="card p-8 text-center space-y-2">
+      <div className="w-12 h-12 mx-auto rounded-lg bg-brand-500/15 border border-brand-500/20 flex items-center justify-center text-brand-300">
+        <FileText size={20} />
+      </div>
+      <p className="text-ink-200 font-medium">Nenhum documento ainda</p>
+      <p className="text-ink-400 text-sm">
+        Adicione um PDF para a IA conseguir te ajudar.
+      </p>
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const {
     documents,
     loading,
     error,
     currentSubjectFilter,
+    refresh,
     filterBySubject,
     uploadDocument,
+    deleteDocument,
   } = useDocuments();
   const { subjects } = useSubjects();
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<Document | null>(null);
+  const [toast, setToast] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const subjectsById = useMemo(
     () => new Map(subjects.map((s) => [s.id, s])),
@@ -71,6 +120,22 @@ export default function DocumentsPage() {
   );
 
   const isFiltered = currentSubjectFilter !== undefined;
+  const showSkeleton = loading && documents.length === 0 && !error;
+  const showEmpty = !loading && !error && sortedDocuments.length === 0;
+
+  async function handleConfirmDelete() {
+    if (!docToDelete) return;
+    try {
+      await deleteDocument(docToDelete.id);
+      setToast({ kind: "success", message: "Documento excluído" });
+    } catch (err) {
+      setToast({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Não foi possível excluir",
+      });
+      throw err;
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -79,13 +144,26 @@ export default function DocumentsPage() {
           <p className="label-section mb-1">Documentos · Biblioteca</p>
           <h1 className="text-3xl font-bold text-ink-100">Sua biblioteca</h1>
           <p className="text-ink-400 mt-1">
-            {documents.length} documento{documents.length === 1 ? "" : "s"} · {formatBytes(totalBytes)} · todos pesquisáveis pela IA do Tempus.
+            {documents.length} documento{documents.length === 1 ? "" : "s"} ·{" "}
+            {formatBytes(totalBytes)} · todos pesquisáveis pela IA do Tempus.
           </p>
         </div>
         <Button onClick={() => setIsUploadOpen(true)}>
           <Plus size={16} /> Adicionar documento
         </Button>
       </header>
+
+      {error && (
+        <div className="card p-4 border-danger-500/30 bg-danger-500/10 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-danger-400 text-sm">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
         <section className="space-y-3">
@@ -101,34 +179,53 @@ export default function DocumentsPage() {
             </select>
           </div>
 
-          {loading && documents.length === 0 ? (
-            <p className="text-ink-400 text-sm">Carregando documentos...</p>
-          ) : error ? (
-            <p className="text-danger-400 text-sm">{error}</p>
-          ) : sortedDocuments.length === 0 ? (
-            <p className="text-ink-400 text-sm">
-              Nenhum documento ainda — adicione um PDF para a IA conseguir te ajudar.
-            </p>
+          {showSkeleton ? (
+            <DocumentSkeleton />
+          ) : showEmpty ? (
+            <EmptyState />
           ) : (
             sortedDocuments.map((d) => {
-              const subject = d.subject_id ? subjectsById.get(d.subject_id) : null;
+              const subject = d.subject_id
+                ? subjectsById.get(d.subject_id)
+                : null;
               return (
                 <article
                   key={d.id}
-                  className="card p-4 flex items-center gap-4 hover:border-brand-500/40 transition cursor-pointer"
+                  className="card p-4 flex items-center gap-4 hover:border-brand-500/40 transition"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-brand-500/15 border border-brand-500/20 flex items-center justify-center text-brand-300">
+                  <div className="w-10 h-10 rounded-lg bg-brand-500/15 border border-brand-500/20 flex items-center justify-center text-brand-300 shrink-0">
                     <FileText size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-ink-100 font-medium truncate">{d.filename}</p>
+                    <p className="text-ink-100 font-medium truncate">
+                      {d.filename}
+                    </p>
                     <p className="text-xs text-ink-400 mt-0.5">
-                      <span className="text-brand-300">{subject?.name ?? "Sem matéria"}</span> · {d.total_pages ?? "—"} pág · {formatBytes(d.file_size_bytes)}
+                      <span className="text-brand-300">
+                        {subject?.name ?? "Sem matéria"}
+                      </span>{" "}
+                      · {d.total_pages ?? "—"} pág ·{" "}
+                      {formatBytes(d.file_size_bytes)}
                     </p>
                   </div>
-                  <span className={`pill ${statusClass[d.status]}`}>
+                  <span
+                    className={`pill ${statusClass[d.status]}`}
+                    title={
+                      d.status === "failed" && d.error_message
+                        ? d.error_message
+                        : undefined
+                    }
+                  >
                     {statusLabel[d.status]}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setDocToDelete(d)}
+                    className="text-ink-500 hover:text-danger-400 transition p-1 rounded"
+                    aria-label={`Excluir ${d.filename}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </article>
               );
             })
@@ -194,6 +291,14 @@ export default function DocumentsPage() {
         subjects={subjects}
         onSubmit={uploadDocument}
       />
+
+      <DeleteDocumentDialog
+        document={docToDelete}
+        onClose={() => setDocToDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {toast && <Toast kind={toast.kind} message={toast.message} />}
     </div>
   );
 }
