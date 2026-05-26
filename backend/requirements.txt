@@ -16,5 +16,8 @@ httpx
 resend
 pytest
 pytest-cov
+pytest-recording
+vcrpy
+testcontainers
 tenacity
 python-multipart
