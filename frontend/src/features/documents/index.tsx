@@ -5,6 +5,7 @@ import { useSubjects } from "@/features/subjects/hooks/useSubjects";
 import type { Document, DocumentStatus, UUID } from "@/lib/api/types";
 import { useDocuments } from "./hooks/useDocuments";
 import { formatBytes } from "./format";
+import { UploadDocumentModal } from "./components/UploadDocumentModal";
 
 type SortOrder = "recent" | "size" | "alpha";
 
@@ -39,9 +40,11 @@ export default function DocumentsPage() {
     error,
     currentSubjectFilter,
     filterBySubject,
+    uploadDocument,
   } = useDocuments();
   const { subjects } = useSubjects();
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const subjectsById = useMemo(
     () => new Map(subjects.map((s) => [s.id, s])),
@@ -79,7 +82,7 @@ export default function DocumentsPage() {
             {documents.length} documento{documents.length === 1 ? "" : "s"} · {formatBytes(totalBytes)} · todos pesquisáveis pela IA do Tempus.
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsUploadOpen(true)}>
           <Plus size={16} /> Adicionar documento
         </Button>
       </header>
@@ -184,6 +187,13 @@ export default function DocumentsPage() {
           </div>
         </aside>
       </div>
+
+      <UploadDocumentModal
+        open={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        subjects={subjects}
+        onSubmit={uploadDocument}
+      />
     </div>
   );
 }
