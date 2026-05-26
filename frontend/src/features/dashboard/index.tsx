@@ -60,7 +60,7 @@ export default function DashboardPage() {
           icon: Clock,
           hint:
             data.sessions_week > 0
-              ? `${data.sessions_week} sessão${data.sessions_week === 1 ? "" : "ões"}`
+              ? `${data.sessions_week} ${data.sessions_week === 1 ? "sessão" : "sessões"}`
               : "ainda sem sessões",
         },
         {
