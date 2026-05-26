@@ -19,5 +19,10 @@ export default defineConfig({
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      // Liga MSW e desativa passthroughs — E2E não precisa do backend real.
+      VITE_USE_MOCKS: "true",
+      VITE_E2E: "true",
+    },
   },
 });

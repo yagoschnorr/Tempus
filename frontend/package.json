@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "e2e": "playwright test",
+    "e2e": "playwright test --headed --project=chromium",
     "e2e:install": "playwright install",
     "gen:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/types.ts",
     "lint": "tsc --noEmit",

@@ -186,6 +186,11 @@ function mountChatMockServer(): {
   };
 }
 
+// O mock deste spec usa page.route, que não enxerga requests interceptadas
+// pelo service worker do MSW (rodando em E2E via VITE_USE_MOCKS=true).
+// Bloquear o service worker garante que page.route seja o único caminho.
+test.use({ serviceWorkers: "block" });
+
 test.beforeEach(async ({ page }) => {
   await loginViaStorage(page);
 });
