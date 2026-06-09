@@ -1,0 +1,64 @@
+# SonarQube Community + Postgres dedicado.
+# Sobe separado do compose principal porque consome ~1GB RAM e leva ~2min pra
+# inicializar — voce so quer essa stack de pe quando vai analisar codigo.
+#
+# Como subir:    docker compose -f docker-compose.sonar.yml up -d
+# Como derrubar: docker compose -f docker-compose.sonar.yml down
+# Como zerar:    docker compose -f docker-compose.sonar.yml down -v
+#
+# UI em http://localhost:9000  (admin/admin no primeiro acesso).
+#
+# O atributo `name:` no topo namespacia os volumes como `tempus-sonar_*`,
+# evitando colisao com volumes antigos chamados `tempus_sonarqube_*` que ja
+# existiam no sistema de tentativas anteriores do time.
+
+name: tempus-sonar
+
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: tempus-sonarqube
+    restart: unless-stopped
+    depends_on:
+      sonar_db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar_db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    # SonarQube exige limite alto de file descriptors em Linux; no Docker
+    # Desktop Windows essa flag e ignorada sem erro, entao mantemos por
+    # portabilidade.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  sonar_db:
+    image: postgres:15
+    container_name: tempus-sonar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_pgdata:/var/lib/postgresql/data
+    # Sem ports: este Postgres so e usado pelo SonarQube na rede interna.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonar_pgdata:

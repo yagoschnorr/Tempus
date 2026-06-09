@@ -1,11 +1,25 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Cria as tabelas no boot (substitui Alembic — ver MEMORY do projeto).
+    # Idempotente: create_all so cria o que ainda nao existe.
+    from app.core.database import Base, engine
+    import app.models  # noqa: F401  popula Base.metadata
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configuração de CORS para permitir requisições do frontend

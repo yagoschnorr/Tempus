@@ -22,7 +22,7 @@ Certifique-se de ter instalado:
 
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Node.js 20+](https://nodejs.org/)
-- [PostgreSQL 15+](https://www.postgresql.org/download/)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — sobe o Postgres com pgvector já configurado
 - [Git](https://git-scm.com/)
 
 ---
@@ -61,15 +61,19 @@ OPENAI_API_KEY=sua_chave_aqui
 SECRET_KEY=sua_secret_key_aqui
 ```
 
-### 3. Configure o banco de dados
+### 3. Suba o banco de dados (Postgres + pgvector)
+
+Na raiz do projeto:
 
 ```bash
-# Crie o banco no PostgreSQL
-psql -U postgres -c "CREATE DATABASE tempus;"
-
-# Execute as migrations
-alembic upgrade head
+docker compose up -d
 ```
+
+Isso baixa a imagem `pgvector/pgvector:pg16`, sobe o container `tempus-db` na porta `5433` do host (mapeada para `5432` dentro do container) e cria as extensões `uuid-ossp` e `vector` automaticamente. A porta `5433` é usada para evitar conflito caso você já tenha Postgres nativo instalado escutando na `5432`.
+
+> As tabelas do schema são criadas no primeiro boot do backend (lifespan do FastAPI chama `Base.metadata.create_all`). Não há migrations.
+
+Para parar: `docker compose down`. Para zerar todos os dados: `docker compose down -v`.
 
 ### 4. Configure o frontend
 

@@ -1,0 +1,23 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: tempus-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tempus
+      POSTGRES_PASSWORD: tempus
+      POSTGRES_DB: tempus
+    ports:
+      # Host 5433 evita conflito com Postgres nativo no Windows; container segue em 5432.
+      - "5433:5432"
+    volumes:
+      - tempus_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tempus -d tempus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tempus_pgdata:
