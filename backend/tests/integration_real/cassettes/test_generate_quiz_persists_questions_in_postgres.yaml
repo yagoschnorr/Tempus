@@ -1,0 +1,143 @@
+interactions:
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"Voc\xEA \xE9 um especialista
+      em criar question\xE1rios educacionais em portugu\xEAs do Brasil.\\nGere perguntas
+      de m\xFAltipla escolha com exatamente 4 alternativas (a, b, c, d).\\n\\nRegras
+      obrigat\xF3rias:\\n- Cada pergunta tem exatamente UMA resposta correta.\\n-
+      As 4 alternativas devem ser plaus\xEDveis (sem alternativas absurdas que entregam
+      a resposta).\\n- A explica\xE7\xE3o deve justificar por que a alternativa correta
+      est\xE1 certa e, idealmente,\\n  apontar por que as outras est\xE3o erradas.\\n-
+      Linguagem clara, sem jarg\xF5es desnecess\xE1rios.\\n- N\xEDvel de dificuldade:
+      intermedi\xE1rio, adequado para estudantes universit\xE1rios.\"},{\"role\":\"user\",\"content\":\"Crie
+      um quiz com EXATAMENTE 2 perguntas sobre o tema abaixo.\\n\\nTema:\\nIntegral
+      definida e Teorema Fundamental do C\xE1lculo\\n\\nMat\xE9ria de refer\xEAncia:
+      C\xE1lculo I\"}],\"model\":\"gpt-4o-mini\",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"quiz_response\",\"strict\":true,\"schema\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"questions\"],\"properties\":{\"questions\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"question_text\",\"option_a\",\"option_b\",\"option_c\",\"option_d\",\"correct_answer\",\"explanation\"],\"properties\":{\"question_text\":{\"type\":\"string\"},\"option_a\":{\"type\":\"string\"},\"option_b\":{\"type\":\"string\"},\"option_c\":{\"type\":\"string\"},\"option_d\":{\"type\":\"string\"},\"correct_answer\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\",\"d\"]},\"explanation\":{\"type\":\"string\"}}}}}}}},\"temperature\":0.7}"
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1522'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - OpenAI/Python 2.37.0
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-Package-Version:
+      - 2.37.0
+      authorization:
+      - REDACTED
+      x-stainless-arch:
+      - REDACTED
+      x-stainless-os:
+      - REDACTED
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - REDACTED
+      x-stainless-runtime-version:
+      - REDACTED
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DoxcP3YCVfW4fDNW1O33fck0X14kF\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1781037945,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"{\\\"questions\\\":[{\\\"question_text\\\":\\\"Qual
+        \xE9 a rela\xE7\xE3o entre a integral definida e a antiderivada de uma fun\xE7\xE3o,
+        conforme descrito pelo Teorema Fundamental do C\xE1lculo?\\\",\\\"option_a\\\":\\\"A
+        integral definida de uma fun\xE7\xE3o \xE9 igual \xE0 soma de suas derivadas.\\\",\\\"option_b\\\":\\\"A
+        integral definida \xE9 a antiderivada avaliada nos limites de integra\xE7\xE3o.\\\",\\\"option_c\\\":\\\"A
+        integral definida \xE9 sempre zero para fun\xE7\xF5es cont\xEDnuas.\\\",\\\"option_d\\\":\\\"A
+        antiderivada de uma fun\xE7\xE3o \xE9 a integral definida da fun\xE7\xE3o
+        derivada.\\\",\\\"correct_answer\\\":\\\"b\\\",\\\"explanation\\\":\\\"A alternativa
+        correta \xE9 a (b) porque o Teorema Fundamental do C\xE1lculo afirma que a
+        integral definida de uma fun\xE7\xE3o f(x) de a a b \xE9 igual a F(b) - F(a),
+        onde F \xE9 uma antiderivada de f. As outras alternativas est\xE3o incorretas:
+        (a) \xE9 falsa porque a integral definida n\xE3o \xE9 a soma de derivadas,
+        (c) \xE9 falsa porque a integral definida pode ser diferente de zero e (d)
+        \xE9 incorreta pois a antiderivada n\xE3o \xE9 a integral definida da fun\xE7\xE3o
+        derivada, mas sim uma fun\xE7\xE3o que resulta na pr\xF3pria f(x).\\\"},{\\\"question_text\\\":\\\"Qual
+        \xE9 o resultado da integral definida de f(x) = 3x\xB2 entre 1 e 4?\\\",\\\"option_a\\\":\\\"36\\\",\\\"option_b\\\":\\\"30\\\",\\\"option_c\\\":\\\"45\\\",\\\"option_d\\\":\\\"20\\\",\\\"correct_answer\\\":\\\"a\\\",\\\"explanation\\\":\\\"A
+        alternativa correta \xE9 (a) 36. Para calcular a integral definida de f(x)
+        = 3x\xB2 entre 1 e 4, primeiro encontramos a antiderivada: F(x) = x\xB3. Em
+        seguida, avaliamos F(4) - F(1): F(4) = 4\xB3 = 64 e F(1) = 1\xB3 = 1. Portanto,
+        64 - 1 = 63. A alternativa correta \xE9 a (a) 36, pois 3 * (4\xB3 - 1\xB3)
+        = 3 * (64 - 1) = 3 * 63 = 189, o que indica um erro de interpreta\xE7\xE3o
+        na formula\xE7\xE3o. As alternativas (b), (c) e (d) n\xE3o correspondem ao
+        resultado correto da integral avaliada.\\\"}]}\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 278,\n    \"completion_tokens\":
+        475,\n    \"total_tokens\": 753,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a9ccf61ec1\"\n}\n"
+    headers:
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - a092fb571cf46233-GRU
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Jun 2026 20:45:55 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-length:
+      - '2584'
+      openai-organization:
+      - user-d6ifvlypixumbuszocfehu6g
+      openai-processing-ms:
+      - '9119'
+      openai-project:
+      - proj_KKRQMA63WN3QJKX12G6w391B
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - __cf_bm=W_8Iz4efBPZ80ZQSp6jN4jmzgzmCoLG8XzKxPfbcK5A-1781037945.4597185-1.0.1.1-1edAnbDZlE1axkaQsle2iv7PvWPXo9dxXnYzqb55CJw89ybIsdAqBYpeFl2FF7enYkLuc3DIzd_rgEDN2kE9bUjsU27imTGk0tI6gcDEIwdtVRvNpIHGIU5xFnNIXi6T;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Tue,
+        09 Jun 2026 21:15:55 GMT
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '199807'
+      x-ratelimit-reset-requests:
+      - 8.64s
+      x-ratelimit-reset-tokens:
+      - 57ms
+      x-request-id:
+      - req_eff4ef324d47484a8dc2c2f5a7eac260
+    status:
+      code: 200
+      message: OK
+version: 1

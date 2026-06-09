@@ -1,0 +1,140 @@
+interactions:
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"Voc\xEA \xE9 um especialista
+      em criar question\xE1rios educacionais em portugu\xEAs do Brasil.\\nGere perguntas
+      de m\xFAltipla escolha com exatamente 4 alternativas (a, b, c, d).\\n\\nRegras
+      obrigat\xF3rias:\\n- Cada pergunta tem exatamente UMA resposta correta.\\n-
+      As 4 alternativas devem ser plaus\xEDveis (sem alternativas absurdas que entregam
+      a resposta).\\n- A explica\xE7\xE3o deve justificar por que a alternativa correta
+      est\xE1 certa e, idealmente,\\n  apontar por que as outras est\xE3o erradas.\\n-
+      Linguagem clara, sem jarg\xF5es desnecess\xE1rios.\\n- N\xEDvel de dificuldade:
+      intermedi\xE1rio, adequado para estudantes universit\xE1rios.\"},{\"role\":\"user\",\"content\":\"Crie
+      um quiz com EXATAMENTE 3 perguntas sobre o tema abaixo.\\n\\nTema:\\nDerivadas
+      de fun\xE7\xF5es polinomiais em c\xE1lculo I\\n\\nMat\xE9ria de refer\xEAncia:
+      C\xE1lculo I\"}],\"model\":\"gpt-4o-mini\",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"quiz_response\",\"strict\":true,\"schema\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"questions\"],\"properties\":{\"questions\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"question_text\",\"option_a\",\"option_b\",\"option_c\",\"option_d\",\"correct_answer\",\"explanation\"],\"properties\":{\"question_text\":{\"type\":\"string\"},\"option_a\":{\"type\":\"string\"},\"option_b\":{\"type\":\"string\"},\"option_c\":{\"type\":\"string\"},\"option_d\":{\"type\":\"string\"},\"correct_answer\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\",\"d\"]},\"explanation\":{\"type\":\"string\"}}}}}}}},\"temperature\":0.7}"
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1519'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - OpenAI/Python 2.37.0
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-Package-Version:
+      - 2.37.0
+      authorization:
+      - REDACTED
+      x-stainless-arch:
+      - REDACTED
+      x-stainless-os:
+      - REDACTED
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - REDACTED
+      x-stainless-runtime-version:
+      - REDACTED
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DoxcEHfiN0kLYsDhqpSE7eNdZHKCg\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1781037934,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"{\\\"questions\\\":[{\\\"question_text\\\":\\\"Qual
+        \xE9 a derivada da fun\xE7\xE3o f(x) = 3x^4 + 5x^2 - 2x + 7?\\\",\\\"option_a\\\":\\\"12x^3
+        + 10x - 2\\\",\\\"option_b\\\":\\\"12x^3 + 10x^2 - 2\\\",\\\"option_c\\\":\\\"3x^3
+        + 5x - 2\\\",\\\"option_d\\\":\\\"12x^3 + 5x^2 - 2\\\",\\\"correct_answer\\\":\\\"a\\\",\\\"explanation\\\":\\\"A
+        derivada de um polin\xF4mio \xE9 encontrada utilizando a regra do poder, que
+        afirma que a derivada de x^n \xE9 n*x^(n-1). Aplicando isso, temos: f'(x)
+        = 4*3x^(4-1) + 2*5x^(2-1) - 2 = 12x^3 + 10x - 2. As outras alternativas n\xE3o
+        seguem corretamente a regra do poder.\\\"},{\\\"question_text\\\":\\\"Qual
+        \xE9 a derivada da fun\xE7\xE3o f(x) = x^3 - 4x + 1?\\\",\\\"option_a\\\":\\\"3x^2
+        - 4\\\",\\\"option_b\\\":\\\"3x^2 + 4\\\",\\\"option_c\\\":\\\"x^2 - 4\\\",\\\"option_d\\\":\\\"3x^2
+        - 1\\\",\\\"correct_answer\\\":\\\"a\\\",\\\"explanation\\\":\\\"Usando a
+        regra do poder, a derivada de f(x) = x^3 \xE9 3x^2 e a derivada de -4x \xE9
+        -4. Assim, a derivada total \xE9 f'(x) = 3x^2 - 4. As outras alternativas
+        n\xE3o representam a derivada correta.\\\"},{\\\"question_text\\\":\\\"Se
+        f(x) = 2x^5 - 3x^3 + x, qual \xE9 a derivada f'(x)?\\\",\\\"option_a\\\":\\\"10x^4
+        - 9x^2 + 1\\\",\\\"option_b\\\":\\\"10x^4 - 9x^3 + 1\\\",\\\"option_c\\\":\\\"5x^4
+        - 3x^2 + 1\\\",\\\"option_d\\\":\\\"5x^4 - 9x^2 + 1\\\",\\\"correct_answer\\\":\\\"a\\\",\\\"explanation\\\":\\\"Aplicando
+        a regra do poder, temos: f'(x) = 5*2x^(5-1) - 3*3x^(3-1) + 1 = 10x^4 - 9x^2
+        + 1. As outras alternativas n\xE3o aplicam corretamente a regra do poder para
+        todas as partes da fun\xE7\xE3o.\\\"}]}\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 278,\n    \"completion_tokens\":
+        533,\n    \"total_tokens\": 811,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a9ccf61ec1\"\n}\n"
+    headers:
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - a092fb10afa6df0e-GRU
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Jun 2026 20:45:44 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-length:
+      - '2212'
+      openai-organization:
+      - user-d6ifvlypixumbuszocfehu6g
+      openai-processing-ms:
+      - '10236'
+      openai-project:
+      - proj_KKRQMA63WN3QJKX12G6w391B
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - __cf_bm=jDh_7u7R8O5Rph8GdSCQEnDtwz1xIH7EToMmoOhOrp8-1781037934.1836605-1.0.1.1-XprmFF399y_fmsG6tM_9cjs9rLanPCAeobLJI5BJtJrqVd8GRX3lu3nmRsZiQmoCv768mqkooP8queGnOm0H59jADBSJMRDk2WLIeDKfHvlaBGH1iW60n_lXyXW1LPHX;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Tue,
+        09 Jun 2026 21:15:44 GMT
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '199808'
+      x-ratelimit-reset-requests:
+      - 8.64s
+      x-ratelimit-reset-tokens:
+      - 57ms
+      x-request-id:
+      - req_ac1c41c9b58d4eb8804f75982302d1d2
+    status:
+      code: 200
+      message: OK
+version: 1
